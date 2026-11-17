@@ -1,0 +1,45 @@
+# Every push and pull request: the plugin and the examples must build, and
+# the checks that need no Mac and no MAME must pass (docs/testing.md).
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Tools (Arm GCC 9.2.1, pico-sdk 2.1.1, picotool, sjasmplus)
+        run: tools/ci/setup.sh
+
+      - name: Build the plugin
+        run: |
+          cmake -B build -G Ninja -DPICO_SDK_PATH="$HOME/pico-sdk"
+          ninja -C build
+          python3 tools/ci/cvpinfo.py build/*.CVP
+
+      - name: Build the examples
+        run: |
+          if [ -f examples/CMakeLists.txt ]; then
+            cmake -S examples -B build-examples -G Ninja -DPICO_SDK_PATH="$HOME/pico-sdk"
+            ninja -C build-examples
+          fi
+
+      - name: Run them on the console's model
+        run: |
+          # (the card examples need macOS's hdiutil, and MAME a BIOS: not here)
+          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames psram
+
+      - name: Screenshots
+        run: |
+          set -- screenshots/screenshot-*.png
+          if [ -f "$1" ]; then python3 tools/png256.py check "$@"; fi

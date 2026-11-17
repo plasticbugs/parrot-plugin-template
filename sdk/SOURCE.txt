@@ -1,0 +1,4 @@
+commit b766ee3
+date   2026-11-17T02:05:18-08:00
+about  Pin order in hw3/pins.py, so the public SDK needn't carry the netlist
+copied 2026-11-17T07:12:03Z by tools/update-sdk.sh
