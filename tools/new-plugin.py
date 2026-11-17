@@ -11,13 +11,15 @@
 #   --out DIR   a new folder: a copy of this kit, made into the plugin
 #               (the default: a folder beside this kit, named after the plugin)
 #   --here      this copy of the kit, made into the plugin in place of Hello
+#   --examples  keep examples/ (left out by default: they are the kit's, to
+#               read, not the plugin's)
 #
 # What it writes: CMakeLists.txt (the features on), src/main.c (each
 # feature on the TV, working, and YOUR CODE where yours goes), src/icon.txt,
 # README.md (as docs/readme-spec.md says), LICENSE, THIRD-PARTY.md, the
 # plugin's tests in test/run.sh and the workflow's list of them. The rest
-# of the kit (cmake/, sdk/, lib/, test/, tools/, docs/, examples/, the
-# workflows) comes as it is. docs/features.md has each feature.
+# of the kit (cmake/, sdk/, lib/, test/, tools/, docs/, the workflows)
+# comes as it is. docs/features.md has each feature.
 #
 # Python 3.8 or newer, nothing beyond its standard library.
 import argparse
@@ -58,100 +60,31 @@ ICONS = {
 }
 FILE_ICON = ["#####...", "#...##..", "#....##.", "#.....#.", "#.....#.", "#.....#.", "#######.", "........"]
 
+# Licenses whose full text the tool writes, from tools/licenses/: the GNU
+# and Apache texts as gnu.org and apache.org publish them, the short ones
+# with <year> and <copyright holders> filled in. Any other SPDX ID gets a
+# LICENSE to paste its text into.
 LICENSES = {
-    "MIT": """MIT License
-
-Copyright (c) {year} {holder}
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-""",
-    "BSD-2-Clause": """BSD 2-Clause License
-
-Copyright (c) {year}, {holder}
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-""",
-    "BSD-3-Clause": """BSD 3-Clause License
-
-Copyright (c) {year}, {holder}
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer.
-
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-3. Neither the name of the copyright holder nor the names of its
-   contributors may be used to endorse or promote products derived from
-   this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-""",
-    "ISC": """ISC License
-
-Copyright (c) {year} {holder}
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-""",
+    "MIT": "MIT.txt",
+    "BSD-2-Clause": "BSD-2-Clause.txt",
+    "BSD-3-Clause": "BSD-3-Clause.txt",
+    "ISC": "ISC.txt",
+    "Apache-2.0": "Apache-2.0.txt",
+    "GPL-2.0-only": "GPL-2.0.txt",
+    "GPL-2.0-or-later": "GPL-2.0.txt",
+    "GPL-3.0-only": "GPL-3.0.txt",
+    "GPL-3.0-or-later": "GPL-3.0.txt",
+    "LGPL-2.1-or-later": "LGPL-2.1.txt",
 }
+
+
+def license_file(spdx, year, holder):
+    with open(os.path.join(KIT, "tools", "licenses", LICENSES[spdx])) as f:
+        text = f.read()
+    if "<copyright holders>" not in text:
+        return text                                     # the GNU and Apache texts: as they are
+    return text.replace("<year>", str(year)).replace("<copyright holders>", holder)
+
 
 TEMPLATE_URL = "https://github.com/plasticbugs/parrot-plugin-template"
 TEMPLATE_HOLDER = "Parrot Cart contributors"
@@ -270,6 +203,10 @@ def check_license(s):
             return k
     if not re.fullmatch(r"[A-Za-z0-9.+\-]+", s):
         raise Bad("an SPDX license ID, as MIT, BSD-3-Clause, Apache-2.0 or GPL-3.0-or-later")
+    m = re.fullmatch(r"(?i)(L?GPL-\d\.\d)\+?", s)
+    if m:
+        v = m.group(1).upper()
+        raise Bad(f"{v}-only or {v}-or-later: which?")
     return s
 
 
@@ -1012,7 +949,8 @@ def main_c(p):
         start = "a MIDI device, for a computer"
     else:
         start = "a host, for what is plugged into the hub"
-    header = (wrap(f"{p.name}: {p.about}", 76) + "\n\n" +
+    header = (f"SPDX-License-Identifier: {p.license}\nCopyright (c) {datetime.date.today().year} {p.by}\n\n" +
+              wrap(f"{p.name}: {p.about}", 76) + "\n\n" +
               wrap(f"Made by tools/new-plugin.py, with {feats}. It builds and runs as it is, with each feature on "
                    "the TV, working. YOUR CODE marks where yours goes; take out what you don't want to show. "
                    "docs/features.md has the features, sdk/firmware/revc/sdk/README.md the SDK.", 76))
@@ -1138,23 +1076,24 @@ def readme(p):
 def license_text(p):
     year = datetime.date.today().year
     if p.license in LICENSES:
-        return LICENSES[p.license].format(year=year, holder=p.by)
+        return license_file(p.license, year, p.by)
     return (f"{p.license}\n\nCopyright (c) {year} {p.by}\n\n"
             f"Paste the full text of the {p.license} license here, from\n"
             f"https://spdx.org/licenses/{p.license}.html\n")
 
 
-def third_party(old, p):
+def third_party(old, p, examples):
     # the first paragraph says what is whose; the template's own license goes at the end
     _, _, rest = old.partition("\n\n")
     _, _, rest = rest.partition("\n\n")
     head = "# What in this repository came from elsewhere"
+    parts = "build files, `lib/`, `test/`, `tools/`, `docs/`" + (", `examples/`" if examples else "") + " and workflows"
     intro = (f"The plugin's own code is {p.license} (`LICENSE`). The plugin template it started from (its "
-             "build files, `lib/`, `test/`, `tools/`, `docs/`, `examples/` and workflows) and the copy of the "
+             f"{parts}) and the copy of the "
              "cart's SDK in `sdk/` are the Parrot Cart contributors', MIT, below. These parts came from "
              "elsewhere and keep their own terms:")
     rest = re.sub(r"\n## The plugin template's license\n.*", "", rest, flags=re.S).rstrip("\n")
-    mit = LICENSES["MIT"].format(year=2026, holder=TEMPLATE_HOLDER)
+    mit = license_file("MIT", 2026, TEMPLATE_HOLDER)
     return f"{head}\n\n{wrap(intro)}\n\n{rest}\n\n## The plugin template's license\n\n```\n{mit}```\n"
 
 
@@ -1265,7 +1204,7 @@ def reshape(root, p, examples):
     write(os.path.join(root, "LICENSE"), license_text(p))
     tp = os.path.join(root, "THIRD-PARTY.md")
     if os.path.exists(tp):
-        write(tp, third_party(open(tp).read(), p))
+        write(tp, third_party(open(tp).read(), p, examples))
     # the template's screenshot isn't this plugin's (docs/screenshots.md makes yours)
     shots = os.path.join(root, "screenshots")
     if os.path.isdir(shots):
@@ -1281,6 +1220,11 @@ def reshape(root, p, examples):
         if m:
             old_tests = re.findall(r"^if wanted (\S+); then", m.group(1), re.M)
             s = s[:m.start()] + test_block(p) + s[m.end():]
+            if not examples:
+                e = re.search(r"(# ---- the examples ----\n)(.*?)(?=^\[ \$status = 0 \])", s, re.S | re.M)
+                if e:
+                    s = (s[:e.start()] + e.group(1) +
+                         "# (left out with examples/: tools/new-plugin.py --examples keeps them)\n\n" + s[e.end():])
             write(run, s)
     wf = os.path.join(root, ".github", "workflows", "build.yml")
     if os.path.exists(wf):
@@ -1346,8 +1290,10 @@ def interview(a):
         print("  " + "  ".join(f"  {ICONS[k][r]}" for k in ICONS).replace(".", " "))
     default_icon = "note" if {"midi-in", "midi-out"} & set(a.features) else "pad" if "pads" in a.features else "star"
     a.icon = ask("Which, or a file of your own", check_icon, a.icon or default_icon)
-    a.license = ask("\nThe license for your code: an SPDX ID, as MIT, BSD-3-Clause, GPL-3.0-or-later",
-                    check_license, a.license)
+    print("\nThe license for your code, as an SPDX ID. Full text comes with these:")
+    print("  " + "\n  ".join(wrap(", ".join(LICENSES), 72).split("\n")))
+    print("Any other gets a LICENSE to paste its text into.")
+    a.license = ask("Which", check_license, a.license)
     if not a.here and not a.out:
         print("\nWhere:")
         print("  1. a new folder: a copy of this kit, made into the plugin")
@@ -1357,6 +1303,9 @@ def interview(a):
             a.here = True
         else:
             a.out = ask("The folder", lambda s: s, default_out(a.name))
+    if a.examples is None:
+        a.examples = ask("\nKeep examples/, one small plugin for each thing a plugin can do? y/n",
+                         one_of("y", "n"), "n") == "y"
     p = Plugin(a)
     print(f"\n{p.name} {p.version} by {p.by} ({p.id}): {p.screen} screen, "
           f"features: {', '.join(p.features) or 'none'}, {p.license}, to {'this kit' if a.here else a.out}")
@@ -1388,10 +1337,13 @@ def main():
     ap.add_argument("--home", default="", help="its folder on the card, as /SWEEPER (default: none)")
     ap.add_argument("--opens", default="", help="file types the menu opens with it, as '.swp .lvl' (default: none)")
     ap.add_argument("--icon", help="an icon's name, or a file (default: one that suits the features)")
-    ap.add_argument("--license", default="MIT", help="an SPDX ID for your code (default MIT)")
+    ap.add_argument("--license", default="MIT",
+                    help="an SPDX ID for your code (default MIT). Full text built in for " + ", ".join(LICENSES) +
+                         "; any other gets a LICENSE to paste its text into")
     ap.add_argument("--out", help="a new folder for it (default: beside this kit, named after the plugin)")
     ap.add_argument("--here", action="store_true", help="make this kit into the plugin, in place of Hello")
-    ap.add_argument("--no-examples", action="store_true", help="with --out: leave examples/ out")
+    ap.add_argument("--examples", action="store_true", default=None,
+                    help="keep examples/, one small plugin for each thing a plugin can do (default: left out)")
     ap.add_argument("--force", action="store_true", help="write over src/main.c that isn't Hello, or into a folder that isn't empty")
     a = ap.parse_args()
     if a.here and a.out:
@@ -1424,14 +1376,16 @@ def main():
         if not is_hello(root) and not a.force:
             raise SystemExit("new-plugin.py: src/main.c isn't the template's Hello: it may be your code. "
                              "--force writes over it")
-        examples = True
+        examples = bool(a.examples)
+        if not examples and os.path.isdir(os.path.join(root, "examples")):
+            shutil.rmtree(os.path.join(root, "examples"))
     else:
         root = os.path.abspath(a.out or default_out(p.name))
         if os.path.commonpath([root, KIT]) == KIT:
             raise SystemExit(f"new-plugin.py: {root} is inside this kit: put it somewhere else")
         if os.path.exists(root) and os.listdir(root) and not a.force:
             raise SystemExit(f"new-plugin.py: {root} isn't empty (--force to write into it)")
-        examples = not a.no_examples
+        examples = bool(a.examples)
         copy_kit(root, examples)
     reshape(root, p, examples)
 
@@ -1443,6 +1397,7 @@ def main():
     print(f"  test/run.sh      its tests: {' '.join(p.tests())}")
     if p.license not in LICENSES:
         print(f"  LICENSE          paste the {p.license} text into it")
+    print("  examples/        " + ("kept" if examples else "left out (--examples keeps it)"))
     print("Next:")
     if root != KIT:
         print(f"  cd {where}")

@@ -106,7 +106,11 @@ tools/new-plugin.py                   # a new folder beside this one
 tools/new-plugin.py --here            # this copy, in place of Hello
 ```
 
-`docs/features.md` describes the features. Or do it by hand, in
+The plugin leaves `examples/` out (`--examples` keeps it). Its license
+is MIT unless you pick another. The full text comes with MIT,
+BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, GPL-2.0 and GPL-3.0 (each
+`-only` or `-or-later`) and LGPL-2.1-or-later. `docs/features.md`
+describes the features. Or do it by hand, in
 `CMakeLists.txt`:
 
 ```cmake

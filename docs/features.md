@@ -18,6 +18,9 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann" \
     --features pads,keyboard,midi-in --screen text
 ```
 
+The new plugin leaves out the kit's `examples/` (`--examples` keeps
+them). The examples this page names are in the kit.
+
 | Feature | What plugs in | The USB port | `USES` |
 |---|---|---|---|
 | `PADS` | up to two game pads | host | usb-host |

@@ -80,6 +80,10 @@ card() {
     hdiutil create -quiet -srcfolder "$tree" -fs "$fsname" -layout "$layout" -size 64m -format UDTO -o "$out/card-$cname"
 }
 
+# hdiutil detach, again with -force if the disk is busy (Spotlight, or
+# another test's attach at the same moment)
+detach() { hdiutil detach -quiet "$1" 2>/dev/null || { sleep 1; hdiutil detach -quiet -force "$1"; }; }
+
 # macOS's opinion of an image the plugin wrote to: fsck, then the save
 # file's bytes: 512 of them, starting with MAGIC, a run count at byte 8
 # (card_check NAME FS RUNS [/PATH/OF.SAV MAGIC]: /SDCARD.SAV and PCSAVE1)
@@ -90,12 +94,12 @@ card_check() {
     whole=${dev%s*}
     case $fs in ExFAT) fsck_exfat -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_exfat"; status=1; } ;;
                 *) fsck_msdos -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_msdos"; status=1; } ;; esac
-    hdiutil detach -quiet "$whole"
+    detach "$whole"
     mnt=$out/mnt-$cname
     mkdir -p "$mnt"
     hdiutil attach -quiet -readonly -nobrowse -mountpoint "$mnt" "$img"
     got=$(python3 -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:len(sys.argv[2])].decode(), struct.unpack_from("<I", d, 8)[0])' "$mnt$save" "$magic" 2>&1) || true
-    hdiutil detach -quiet "$mnt"
+    detach "$mnt"
     if [ "$got" = "512 $magic $runs" ]; then echo "  macOS: fsck clean, $save is 512 bytes, run $runs"
     else echo "  FAIL: $save on the Mac: $got (wanted run $runs)"; status=1; fi
 }
