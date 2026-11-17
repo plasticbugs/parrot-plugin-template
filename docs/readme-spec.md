@@ -23,8 +23,8 @@ The cart shows the README from the top, and 30 columns is narrow, so
 2. **Controls.** A list, a line a control.
 3. Anything needed to use it: where files go on the card, what to plug in.
 4. **Credits**, each with a link to its source: every emulator core,
-   library, font, tune and picture that isn't yours, and its licence.
-5. Your licence, and where your own source is.
+   library, font, tune and picture that isn't yours, and its license.
+5. Your license, and where your own source is.
 
 Then whatever else you like: building, history, thanks. It is on the cart
 too, further down.

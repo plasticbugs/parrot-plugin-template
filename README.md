@@ -23,7 +23,7 @@ a few names, and you have a plugin of your own that builds.
 
 Source: put your repository's address here.
 
-## Licence
+## License
 
 MIT: see LICENSE. THIRD-PARTY.md lists what came from elsewhere.
 
@@ -32,7 +32,7 @@ MIT: see LICENSE. THIRD-PARTY.md lists what came from elsewhere.
 This file is your plugin's README: the cart shows it, 30 characters wide,
 on the plugin's details page, and the plugin registry shows it too. So
 everything above this heading is the pattern to keep: what the plugin is,
-its controls, its credits with links to their source, its licence. Replace
+its controls, its credits with links to their source, its license. Replace
 this section with whatever else your users need.
 
 To start:

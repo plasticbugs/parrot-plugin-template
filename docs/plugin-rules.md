@@ -128,10 +128,10 @@ Plugins are free, separate downloads: nobody bundles them with a cart or
 sells them. Every release has credits and a link to its source
 (`docs/release-checklist.md`).
 
-**Your plugin's licence is your choice.** The template and the SDK are MIT
+**Your plugin's license is your choice.** The template and the SDK are MIT
 (`LICENSE`, `THIRD-PARTY.md`), which lets you release your plugin under
-any licence you like, the GPL included: an emulator core's licence often
+any license you like, the GPL included: an emulator core's license often
 decides it for you. Whatever you pick: the release is free, its README
 has credits, and it links to the source. If your plugin contains GPL or
-LGPL code, the source link is not a courtesy but that licence's
+LGPL code, the source link is not a courtesy but that license's
 requirement, and it must be the source of exactly the version released.

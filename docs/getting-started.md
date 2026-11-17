@@ -128,7 +128,7 @@ tools/screenshot.sh shot.png src 3000 "500:joy=up 1000:key=5"
 |---|---|
 | `sjasmplus: command not found` during the build | install sjasmplus (above) |
 | `the plugin's .bss reaches the switch's reserved RAM` | the plugin's data is too big for the chip's RAM: move big buffers to the PSRAM (`examples/psram`) |
-| `links malloc: its heap would grow into the launch block` | something calls `malloc` (or `printf` of a float, `new`, ...). Avoid it, or add `HEAP` to `cvcart_plugin()` (`sdk/.../cvheap.h`) |
+| `links malloc: its heap would grow into the launch block` | something calls `malloc` (or `printf` of a float, or `new`). Avoid it, or add `HEAP` to `cvcart_plugin()` (`sdk/.../cvheap.h`) |
 | a warning that the pico-sdk isn't 2.1.1 | it will probably work; 2.1.1 is what the cart is built and tested with |
 | on the TV: `NEEDS NEWER CART FIRMWARE` | the plugin was built with a newer SDK than the cart's menu knows: update the cart |
 | the plugin isn't listed | the file isn't in `/PLUGINS`, or isn't a `.CVP` the menu can read (it is then listed by its file name) |

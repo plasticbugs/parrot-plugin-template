@@ -6,7 +6,7 @@ read from the top, an icon, a README and five lines of CMake.
 | Folder | Shows | SDK |
 |---|---|---|
 | `../src` | the smallest plugin: text, the console's controller, a note for the menu | `cvkernel`, `cvscreen`, `lib/wired.h` |
-| `screen` | text at two sizes, the 15 colours, a map of 8x8 tiles, something moving | `cvscreen`, `vdp.h` |
+| `screen` | text at two sizes, the 15 colors, a map of 8x8 tiles, something moving | `cvscreen`, `vdp.h` |
 | `sound` | the sound chip: notes on a voice, a drum on the noise | `cvk_sound`, `cvk_mb` |
 | `usb-gamepad` | a USB pad: buttons, calibrated sticks, directions | `cvpad`, `gamepad.h` |
 | `usb-keyboard-mouse` | a USB keyboard and mouse | TinyUSB host; the example's own `usbinput.c` |

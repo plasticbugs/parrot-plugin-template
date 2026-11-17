@@ -7,7 +7,7 @@ Plug them into a powered USB hub, and the hub into the cart.
 ## Controls
 
 - Keyboard: letters, digits, Enter, Backspace
-- Mouse: moves the pointer; its buttons change the pointer's colour
+- Mouse: moves the pointer; its buttons change the pointer's color
 - RESET: back to the menu
 
 ## Credits

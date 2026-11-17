@@ -14,13 +14,13 @@ builds anything.
       credits** (`docs/readme-spec.md`). Look at it as the cart will show
       it: `python3 sdk/firmware/revc/sdk/cvreadme.py README.md`
 - [ ] **Credits, each with a source link**: every core, library, font,
-      sound and picture you didn't make, with its author and licence. A
+      sound and picture you didn't make, with its author and license. A
       plugin built with this kit contains the Parrot Cart SDK (MIT) and
       the Raspberry Pi Pico SDK (BSD 3-Clause), and TinyUSB (MIT) if it
       uses USB.
 - [ ] **A link to your own source** in the README: the repository, and
       for GPL or LGPL code the exact version released (the tag).
-- [ ] **`LICENSE` is your plugin's licence.** The template's is MIT; yours
+- [ ] **`LICENSE` is your plugin's license.** The template's is MIT; yours
       can be anything (`docs/plugin-rules.md`, "Sharing a plugin"). If you
       change it, keep `THIRD-PARTY.md` and the MIT text for the SDK's
       part.

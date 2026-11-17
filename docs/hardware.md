@@ -59,8 +59,8 @@ picture and the sound. The SDK has two:
 
 What the console gives you:
 
-- **Video.** TMS9918A, 256x192 pixels, 15 colours plus transparent, 16 KB of
-  video RAM. In Graphics II mode each 8-pixel row of a tile has two colours.
+- **Video.** TMS9918A, 256x192 pixels, 15 colors plus transparent, 16 KB of
+  video RAM. In Graphics II mode each 8-pixel row of a tile has two colors.
   32 sprites, 4 on a line.
 - **Sound.** SN76489: three square-wave tones and one noise channel, each
   with 16 volume steps. On a real console every sound write stalls the Z80
