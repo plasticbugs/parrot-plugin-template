@@ -96,7 +96,22 @@ menu.
 
 ## 4. Make it yours
 
-In `CMakeLists.txt`:
+The quick way: `tools/new-plugin.py` asks for a name, your name, the
+screen and the features you want (game pads, a keyboard, a mouse, MIDI in
+and out, the PSRAM, saves), and writes a plugin that builds, with each
+feature working on the TV and `YOUR CODE` where yours goes:
+
+```sh
+tools/new-plugin.py                   # a new folder beside this one
+tools/new-plugin.py --here            # this copy, in place of Hello
+```
+
+The plugin leaves `examples/` out (`--examples` keeps it). Its license
+is MIT unless you pick another. The full text comes with MIT,
+BSD-2-Clause, BSD-3-Clause, ISC, Apache-2.0, GPL-2.0 and GPL-3.0 (each
+`-only` or `-or-later`) and LGPL-2.1-or-later. `docs/features.md`
+describes the features. Or do it by hand, in
+`CMakeLists.txt`:
 
 ```cmake
 cvcart_plugin(hello ID yourname.hello NAME "Hello" VERSION 0.1.0 BY "Your Name"

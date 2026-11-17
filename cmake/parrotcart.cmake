@@ -11,7 +11,9 @@
 #
 # The cart's SDK is the copy in sdk/ (tools/update-sdk.sh refreshes it); its
 # own CMake functions are in sdk/firmware/revc/sdk/cvplugin.cmake:
-# cvkernel_use, cvframes_use, cvsd_use, cvpsram_use, cvpad_use, cvcart_plugin.
+# cvkernel_use, cvframes_use, cvcart_features (the USB features, the PSRAM
+# and the card: docs/features.md), cvcart_plugin; and by hand cvsd_use,
+# cvpsram_use, cvpad_use.
 #
 # The pico-sdk: -DPICO_SDK_PATH=dir, or the environment's PICO_SDK_PATH, or
 # -DPICO_SDK_FETCH_FROM_GIT=ON (version 2.1.1).
@@ -56,7 +58,7 @@ endfunction()
 # player): the console runs the SDK's frame kernel, one command list a frame.
 function(parrotcart_frames TARGET)
     cvframes_use(${TARGET})
-    target_include_directories(${TARGET} PRIVATE ${PARROTCART_DIR}/lib)
+    target_include_directories(${TARGET} PRIVATE ${PARROTCART_DIR}/lib ${PARROTCART_SDK}/midihello)
     _parrotcart_common(${TARGET})
 endfunction()
 

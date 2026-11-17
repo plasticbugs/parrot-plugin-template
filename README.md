@@ -42,8 +42,12 @@ To start:
    `build/HELLO.CVP`.
 3. Copy the `.CVP` into the `/PLUGINS` folder of the cart's SD card. It is
    in the cart's menu under Plugins.
-4. In `CMakeLists.txt`, change the ID, the name and the developer to
-   yours (docs/plugin-rules.md), and draw an icon (docs/icons.md).
+4. Run `tools/new-plugin.py`. It asks for the plugin's name, yours, and
+   the features you want (game pads, a keyboard, a mouse, MIDI in and
+   out, the PSRAM, saves), and writes a plugin that builds, each feature
+   working on the TV (docs/features.md). Or by hand: in `CMakeLists.txt`,
+   change the ID, the name and the developer to yours
+   (docs/plugin-rules.md), and draw an icon (docs/icons.md).
 5. Write your plugin in `src/`. `src/main.c` is the smallest one;
    `examples/` has one for each thing a plugin can do:
 
@@ -71,6 +75,8 @@ The docs:
 
 - docs/getting-started.md: tools, building, the card
 - docs/hardware.md: the chips, the memory, and what a plugin can use
+- docs/features.md: game pads, keyboards, mice, MIDI, the PSRAM and the
+  card, each a switch in CMake
 - docs/plugin-rules.md: IDs, versions, sizes, folders, what a plugin may do
 - docs/icons.md: the 8x8 icons
 - docs/readme-spec.md: this file, and how the cart shows it
