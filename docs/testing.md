@@ -36,6 +36,11 @@ open /tmp/screen.png; cat /tmp/log.txt
 
 The card tests need macOS (`hdiutil`); the rest runs on Linux too.
 
+To play your plugin instead of scripting it, use the simulator: the same
+models, in a window, with sound, the keyboard and game pads, and a folder
+as the SD card (docs/simulator.md). Its headless mode takes the same
+scripts, and `sim/test.sh` runs every example that way.
+
 ## What only the console can tell you
 
 The models are of a console that behaves. None of this is tested until it

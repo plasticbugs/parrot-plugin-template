@@ -59,8 +59,10 @@ To start:
 | frames | a full picture every TV frame |
 | psram | the 8 MB of PSRAM |
 
-6. Try it on your computer first: `test/run.sh` runs every example's own
-   code against a model of the console, and takes its screenshots
+6. Try it on your computer first. `sim/run.sh src` runs your plugin in a
+   window, with sound, played with the keyboard or a game pad
+   (docs/simulator.md). `test/run.sh` runs every example's own code
+   against a model of the console, and takes its screenshots
    (docs/testing.md, docs/screenshots.md).
 7. Release it: tag `v1.0.0`, and the workflow in `.github/workflows`
    builds the `.CVP` and attaches it to a GitHub release
@@ -76,5 +78,6 @@ The docs:
 - docs/readme-spec.md: this file, and how the cart shows it
 - docs/screenshots.md: the registry's screenshots
 - docs/release-checklist.md: before you tag
+- docs/simulator.md: your plugin in a window on your computer
 - docs/testing.md: testing without a console, and on one
 - sdk/firmware/revc/sdk/README.md: the SDK's reference
