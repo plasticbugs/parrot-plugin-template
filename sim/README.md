@@ -7,11 +7,12 @@ How it is built, for whoever works on it. How to use it is in
 
 `test/host/host.c` already models everything a plugin talks to: the two
 console kernels and their rules, the card through the SDK's file system,
-the menu's launch block, USB, the PSRAM. `test/run.sh` drives those models
+the menu's launch block, the SDK's USB (`cvusb`), the PSRAM. `test/run.sh` drives those models
 with a script and keeps the last picture. The simulator builds the same
 `host.c`, unchanged, and drives it from a window instead: the picture on
 the screen each TV frame, the sound chip's bytes to the speakers, the
-keyboard and game pads as the controllers.
+keyboard, mouse and game pads as the controllers and USB devices, the
+desktop's MIDI ports as the cart's USB MIDI.
 
 So there is one set of models. A rule added to `host.c` is checked in both
 places, and `sim/test.sh` checks that the simulator's pictures and logs
@@ -24,7 +25,9 @@ equal `test/run.sh`'s.
 | `main.c` | options, SDL, the window, each TV frame, RESET, the end |
 | `model.c` | `#include "../test/host/host.c"`, with its hooks wired up, and the few functions the rest calls into it |
 | `audio.c`, `psg.c` | the PSG bytes, stamped with the console time they reach the chip; an SN76489A model; SDL audio and the WAV |
-| `input.c` | keyboard, mouse and game pads, to the console's controller, a USB pad, a USB keyboard and mouse |
+| `input.c` | keyboard, mouse and game pads, to the console's controller, USB pads 1 and 2, a USB keyboard and mouse; the F2 role; the script's `sim*` words, made-up devices for headless tests |
+| `midi.c` | the desktop's MIDI ports, through RtMidi's C API: in to the model, out from the `SIM_MIDI` hook, and `--midi-log` |
+| `third_party/rtmidi/` | RtMidi 6.1.0, unchanged (its `VENDORED.md` has the checksums), built as a static library |
 | `card.c` | the SD card: a FAT32 volume made from a folder, or a disk image |
 | `extra.c` | SDK calls `host.c` doesn't answer (its examples don't make them) but real plugins do |
 | `cxxmain.cpp` | for a plugin whose `main()` is C++ |
@@ -52,7 +55,7 @@ calls the SDK never lets a frame pass. The cart's plugins all do.
 
 ## The hooks in test/host/host.c
 
-`host.c` has five macros, empty unless `SIM_HOOKS` is defined (model.c
+`host.c` has seven macros, empty unless `SIM_HOOKS` is defined (model.c
 defines them):
 
 | Hook | Where | The simulator's |
@@ -62,6 +65,8 @@ defines them):
 | `SIM_MAILBOX()` | the plugin publishes the screen kernel's mailbox | its sound bytes, if the sound changed |
 | `SIM_FAIL()` | after `fail()` has said which rule broke | the red mark, the title, `--strict` |
 | `SIM_END()` | the end of the session, before the exit | the card's sync, the WAV, RESET's screen |
+| `SIM_MIDI(bytes, n, to_dev)` | the plugin sends MIDI: to a computer, or (`to_dev`) to the MIDI device on the hub | `midi_send()`: the out port and `--midi-log` |
+| `SIM_EVENT(what, v)` | a script word `host.c` doesn't know | the `sim*` words, to `input_script()`; false for any other |
 
 ## What changed in test/ for the simulator
 
@@ -72,7 +77,7 @@ For merging with other work on `test/host`:
   `host.c` now draws both kernels' pictures with it (it had its own
   Graphics II drawing for the frame kernel). `test/vdp/main.c` and the
   `vdp` block in `test/run.sh` check it against MAME, mode by mode.
-- `test/host/host.c`: the five hooks above; the screen kernel's registers
+- `test/host/host.c`: the hooks above; the screen kernel's registers
   kept in `k_reg[8]` (a list's register writes were dropped before, so its
   picture assumed midihello.asm's); `end_us` is 64 bits, for "never".
 - `test/host/build.sh`: builds `tms9918.c` too.
@@ -88,26 +93,55 @@ For merging with other work on `test/host`:
 - `test/run.sh`: the `vdp` checks; and `PC_SCRIPT` and the other `PC_*`
   settings no longer carry over from one run to the next (sh keeps a
   function's `VAR=value` prefixes set after the call).
+- `test/host/host.c`'s USB model, for the simulator's phase 2: two pads
+  (`pad2=`, `lstick2=`, `rstick2=`, `padkind=`, `pad2kind=`), each in its
+  own slot as `cvpad.c` keeps them; `keydown=E0` to `E7` set the
+  modifiers, as a keyboard's report has them; the key and MIDI queues are
+  rings of the SDK's sizes (32 and 64). `usb_key()`, `usb_mouse()` and
+  `usb_midi_bytes()` are what the script words and the simulator both
+  call.
+- `test/usb/` (new): a plugin with every USB feature on, which writes each
+  input to its note. The `usb` block in `test/run.sh` and `sim/test.sh`
+  runs it with `test/usb/host.script` and `device.script`, and
+  `sim/test.sh` again with the `sim*` words.
+
+## Phase 2: USB and MIDI
+
+What `input.c` does with the desktop's devices, by role (F2):
+
+- The keyboard in the "USB keyboard and mouse" role: each key down or up
+  is `model_usb_key()`, which builds the keyboard's boot report and hands
+  it to the SDK's `cvkeys_report()` (`cvusb_keys.c`), as the cart does.
+  SDL's scancodes are HID usages, so nothing is translated. The mouse is
+  in relative mode; its motion, buttons and wheel are `model_usb_mouse()`,
+  sent as boot reports of at most 127 counts each.
+- Game pads: two slots, kept as `cvpad.c` keeps them (a pad keeps the slot
+  it took). `model_usb_pad()` sets each slot's state and kind every frame.
+  The first pad in a slot is also the console's controller.
+- Leaving the role, or losing the focus, lets go of every key and button.
+
+What `midi.c` does: inputs are read once a TV frame and handed to
+`model_midi_in()`, which packs them as USB-MIDI packets into the SDK's
+queue. What the plugin sends comes through `SIM_MIDI` and goes out at
+once, whole messages one at a time (running status written out). With
+`MIDI_OUT` the port named after the plugin is a virtual one, both ways;
+Windows has none, so it takes a named port. Headless, no port opens
+unless one is named, and with one open the run is paced on the wall clock.
+
+`--usb` sets the model's `computer` and `computer_asks` before the plugin
+starts. Real MIDI inputs with `MIDI_IN` count as a MIDI device on the hub
+(`model_midi_device()`), so the host side can send to it at once.
+
+Headless tests can't press real keys, so the script's `sim*` words (the
+`SIM_EVENT` hook) push SDL events for keys, mouse motion, buttons and the
+wheel, and attach SDL virtual joysticks for pads. They go through
+`input_poll()` as a window's would. Headless, the computer's own pads are
+ignored (their drivers are off), and pad events are allowed without focus.
 
 ## Hook points for later
 
 Things the simulator doesn't do yet, and where they would go:
 
-- **USB MIDI in and out.** `host.c` models the usb-midi-out example's own
-  device driver (`usbmidi_dev_*`), logging the bytes. For a MIDI port on
-  the desktop: RtMidi (or SDL's future MIDI) in a new `midi.c`; out from
-  where `host.c` logs `midi ...` bytes, in to a queue the model hands the
-  plugin. Wait for the SDK's USB API from the `features` branch, and model
-  that rather than an example's own driver.
-- **A USB keyboard and mouse through the SDK.** Today they are `host.c`'s
-  model of the usb-keyboard-mouse example's `usbinput.h`, fed by
-  `model_usb_key()` and `model_usb_mouse()`. `input.c` already has the
-  role (F2), the HID usages (SDL's scancodes are HID usages), relative
-  mouse mode and buttons. When the SDK has a keyboard and mouse API,
-  model it in `host.c` and point those two functions at it.
-- **More than one USB pad.** `input.c` reads every pad; `host.c` models
-  one (`cvpad_get(0)`). Widen `pad_state` to `CVPAD_MAX` and pass the
-  pad's number through `model_usb_pad()`.
 - **Pad Test's view.** `include/tusb.h` is a port with nothing on it, so
   Pad Test runs and shows no device. `cvpad_info()` in `host.c` could
   describe the desktop pad.
@@ -117,3 +151,10 @@ Things the simulator doesn't do yet, and where they would go:
   more than help.
 - **Video and GIFs.** F12 saves one PNG. A GIF or video key would collect
   `model_picture()` each frame in `sim_on_frame()`.
+- **MIDI timing.** MIDI out leaves when the plugin sends it, which is
+  ahead of the audio queue's picture and sound by up to its length, and
+  moves in frame-sized steps. Stamping messages with the console time and
+  sending them on a thread, as `audio.c` does with the PSG, would fix both.
+- **A computer plugged in later.** The model, like the cart, chooses the
+  port's side once at the start. A key to plug a computer in or out would
+  need `cvusb` to change its mind first.

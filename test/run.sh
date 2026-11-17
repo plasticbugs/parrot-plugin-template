@@ -172,6 +172,19 @@ if wanted vdp; then
         PC_END=1500 PC_SCRIPT="100:key=$k" run "vdp-$k" "$kit/test/vdp" 'note "VDP test"'
     done
 fi
+# the SDK's USB features, all on (test/usb/main.c writes each input to its
+# note): a keyboard, a mouse and two pads on a hub, a MIDI keyboard's notes
+# sent back to it; then as a MIDI device on a computer
+if wanted usb; then
+    PC_END=3000 PC_SCRIPT="$(cat "$kit/test/usb/host.script")" run usb-host "$kit/test/usb" \
+        'note "usb HOST"' 'note "key E1 dn 00 m02"' 'note "key 04 dn 41 m02"' 'note "key 04 up 41 m02"' 'note "key 28 dn 0D m00"' \
+        'note "mouse 40,20 w1 b1"' 'note "mouse -300,5 w-2 b0"' 'note "pad1 SWITCH PRO 00000110"' 'note "pad1 at 1500,-900 0,0"' \
+        'note "pad2 HID PAD 00000020"' 'note "pad2 at 0,0 -2048,2047"' 'note "pad2 OFF' 'midi 90 3C 64 \(to the MIDI device\)' \
+        'note "joy 11 key 5"'
+    PC_END=2000 PC_SCRIPT="$(cat "$kit/test/usb/device.script")" run usb-device "$kit/test/usb" \
+        'note "usb ON A COMPUTER"' ' midi 90 3C 64$' ' midi 80 3C 00$' ' midi C0 05$'
+    grep -q 'note "midi F0' "$out/usb-device/log.txt" && { echo "  FAIL: a SysEx came in (the cart passes none in)"; status=1; }
+fi
 
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
 exit $status

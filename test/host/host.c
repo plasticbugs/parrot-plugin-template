@@ -26,7 +26,9 @@
 //   pad=south+left     a USB pad plugged in, holding these (up down left right south east west
 //                      north l r zl zr minus plus home capture ls rs); pad=off unplugs it
 //   lstick=X,Y rstick=X,Y   its sticks, -2048..2047
-//   keydown=04 keyup=04     a USB keyboard's key, by HID usage (hex)
+//   padkind=hid        what it is: switch (a Switch Pro Controller, the default) or hid
+//   pad2=... lstick2=... rstick2=... pad2kind=...   the same for USB pad 2
+//   keydown=04 keyup=04     a USB keyboard's key, by HID usage (hex); E0-E7 are the modifiers
 //   mods=02            the keyboard's modifiers held (hex, HID's bits: 02 left shift); mods=0 lets go
 //   mouse=DX,DY,BUTTONS[,WHEEL]   a USB mouse
 //   midiin=90,3C,64    MIDI that comes in (hex bytes): from a MIDI device on a hub when the
@@ -34,6 +36,7 @@
 //   computer=0|1|ask   the USB port as a device: a computer is listening (1 from the start);
 //                      ask: one is there and asking its user, and never takes the cart
 //   snap=NAME          PC_OUT/NAME.png now
+//   simkey=... simpad=... and the other sim* words: the simulator's own (sim/input.c)
 //
 // The plugin's USB features (cvusb.h) are the ones its CMakeLists.txt turns
 // on: build.sh reads cvcart_features() (with plugin.cmake, as the simulator
@@ -80,6 +83,8 @@ int plugin_main(void);
 #define SIM_MAILBOX()               // the plugin publishes the mailbox: mbox is new, mbox_live old
 #define SIM_FAIL()                  // a rule broken (fail() has said which)
 #define SIM_END()                   // the end, just before the exit
+#define SIM_MIDI(bytes, n, to_dev)  // the plugin sends n MIDI bytes: to a computer, or to the MIDI device
+#define SIM_EVENT(what, v) false    // a script word the models don't know: the simulator's, if it takes it
 #endif
 
 // ---- the test's clock, log and end -----------------------------------------------
@@ -123,12 +128,14 @@ void sleep_us(uint64_t us) { now_us += us; }
 // ---- the inputs ------------------------------------------------------------------
 static uint8_t joy_held;        // wired.h's WIRED_* order: up right down left fire fire2
 static int key_held = -1;
-static bool pad_in;
-static gamepad_t pad_state;
+static bool pad_in[CVUSB_PAD_MAX];      // USB pads 1 and 2
+static gamepad_t pad_state[CVUSB_PAD_MAX];
+static const char *pad_kind[CVUSB_PAD_MAX] = {"SWITCH PRO", "SWITCH PRO"};
 static bool computer = true, computer_asks;
 static uint8_t kb_down[6], kb_mods;
+static void usb_key(uint8_t usage, bool down);
 static void usb_key_report(void);
-static void usb_mouse_report(int dx, int dy, uint8_t buttons, int wheel);
+static void usb_mouse(int dx, int dy, uint8_t buttons, int wheel);
 static void usb_midi_in(const char *hex);
 static struct { uint8_t usage; bool down; } kq[64];
 static int kq_n, kq_at, kb_count;
@@ -152,39 +159,43 @@ static uint32_t names(const char *v, const char *const *tab, int n) {
     return bits;
 }
 
+// "pad", "pad2" ...: which USB pad an event is about (0 or 1), or -1 if it isn't BASE's
+static int pad_of(const char *what, const char *base, const char *tail) {
+    const size_t n = strlen(base);
+    if (strncmp(what, base, n)) return -1;
+    const int k = what[n] == '2' ? 1 : 0;
+    return !strcmp(what + n + k, tail) ? k : -1;
+}
+
 static void event(const char *what, const char *v) {
     static const char *const joy[] = {"up", "right", "down", "left", "fire", "fire2"};
     static const char *const pad[] = {"up", "down", "left", "right", "south", "east", "west", "north", "l", "r",
                                       "zl", "zr", "minus", "plus", "home", "capture", "ls", "rs"};
-    int a = 0, b = 0, c = 0;
+    int a = 0, b = 0, c = 0, k;
     logline("script %s=%s", what, v);
     if (!strcmp(what, "joy")) joy_held = (uint8_t)names(v, joy, 6);
     else if (!strcmp(what, "key")) key_held = !*v ? -1 : *v == '*' ? 10 : *v == '#' ? 11 : *v - '0';
-    else if (!strcmp(what, "pad")) {
-        pad_in = strcmp(v, "off") != 0;
-        if (pad_in) pad_state.buttons = names(v, pad, 18);
-        else memset(&pad_state, 0, sizeof pad_state);
-    } else if (!strcmp(what, "lstick") && sscanf(v, "%d,%d", &a, &b) == 2) { pad_state.lx = (int16_t)a; pad_state.ly = (int16_t)b; }
-    else if (!strcmp(what, "rstick") && sscanf(v, "%d,%d", &a, &b) == 2) { pad_state.rx = (int16_t)a; pad_state.ry = (int16_t)b; }
-    else if (!strcmp(what, "keydown") || !strcmp(what, "keyup")) {
-        kb_count = 1;
-        const uint8_t u = (uint8_t)strtol(v, NULL, 16);
-        if (kq_n < 64) { kq[kq_n].usage = u; kq[kq_n++].down = what[3] == 'd'; }
-        for (int i = 0; i < 6; i++) if (kb_down[i] == u) kb_down[i] = 0;          // the keyboard's report
-        if (what[3] == 'd') for (int i = 0; i < 6; i++) if (!kb_down[i]) { kb_down[i] = u; break; }
-        usb_key_report();
-    } else if (!strcmp(what, "mods")) {
+    else if ((k = pad_of(what, "pad", "")) >= 0) {
+        pad_in[k] = strcmp(v, "off") != 0;
+        if (pad_in[k]) pad_state[k].buttons = names(v, pad, 18);
+        else memset(&pad_state[k], 0, sizeof pad_state[k]);
+    } else if ((k = pad_of(what, "lstick", "")) >= 0 && sscanf(v, "%d,%d", &a, &b) == 2) { pad_state[k].lx = (int16_t)a; pad_state[k].ly = (int16_t)b; }
+    else if ((k = pad_of(what, "rstick", "")) >= 0 && sscanf(v, "%d,%d", &a, &b) == 2) { pad_state[k].rx = (int16_t)a; pad_state[k].ry = (int16_t)b; }
+    else if ((k = pad_of(what, "pad", "kind")) >= 0 && (!strcmp(v, "switch") || !strcmp(v, "hid")))
+        pad_kind[k] = v[0] == 's' ? "SWITCH PRO" : "HID PAD";
+    else if (!strcmp(what, "keydown") || !strcmp(what, "keyup")) usb_key((uint8_t)strtol(v, NULL, 16), what[3] == 'd');
+    else if (!strcmp(what, "mods")) {
         kb_count = 1;
         kb_mods = (uint8_t)strtol(v, NULL, 16);
         usb_key_report();
     } else if (!strcmp(what, "mouse") && sscanf(v, "%d,%d,%d", &a, &b, &c) == 3) {
         int w = 0;
         if (sscanf(v, "%*d,%*d,%*d,%d", &w) != 1) w = 0;
-        mouse_seen = 1; mouse_dx += a; mouse_dy += b; mouse_btn = (uint8_t)c;
-        usb_mouse_report(a, b, (uint8_t)c, w);
+        usb_mouse(a, b, (uint8_t)c, w);
     } else if (!strcmp(what, "midiin")) usb_midi_in(v);
     else if (!strcmp(what, "computer")) { computer_asks = !strcmp(v, "ask"); computer = !computer_asks && atoi(v) != 0; }
     else if (!strcmp(what, "snap")) snapshot(v);
+    else if (SIM_EVENT(what, v)) {}
     else { fprintf(stderr, "PC_SCRIPT: what is \"%s=%s\"?\n", what, v); exit(2); }
 }
 
@@ -494,11 +505,15 @@ static void launch(const char *id, const char *path) {
 // ---- USB pads (cvpad.h), keyboard and mouse, MIDI out (the examples' own) ----------
 void cvpad_init(void) { logline("usb: the port is a host"); }
 void cvpad_task(void) {}
-bool cvpad_get(int n, gamepad_t *p) { if (n || !pad_in) return false; *p = pad_state; return true; }
-int cvpad_count(void) { return pad_in; }
-bool cvpad_seen(void) { return pad_in; }
+bool cvpad_get(int n, gamepad_t *p) {
+    if (n < 0 || n >= CVUSB_PAD_MAX || !pad_in[n]) return false;
+    *p = pad_state[n];
+    return true;
+}
+int cvpad_count(void) { return pad_in[0] + pad_in[1]; }
+bool cvpad_seen(void) { return pad_in[0] || pad_in[1]; }
 uint32_t cvpad_task_max_us(void) { return 50; }
-const char *cvpad_kind(int n) { return !n && pad_in ? "SWITCH PRO" : NULL; }
+const char *cvpad_kind(int n) { return n >= 0 && n < CVUSB_PAD_MAX && pad_in[n] ? pad_kind[n] : NULL; }
 bool cvpad_info(int n, cvpad_info_t *o) { (void)n; (void)o; return false; }
 void cvpad_info_lap(int n) { (void)n; }
 void cvpad_set_log(void (*fn)(const char *)) { (void)fn; }
@@ -540,6 +555,7 @@ bool usbmidi_write(const uint8_t *m, uint32_t n) {
     for (uint32_t k = 0; k < n && k < 16; k++) snprintf(hex + 3 * k, 4, " %02X", m[k]);
     logline("midi%s", hex);
     midi_bytes += n;
+    SIM_MIDI(m, n, false);
     return true;
 }
 
@@ -548,11 +564,12 @@ static cvusb_mode_t usb_mode;
 static uint64_t usb_t0;
 static bool usb_midi_dev;               // a MIDI device on the hub (it has sent something)
 static cvkeys_t usb_keys;
-static cvkey_t usb_kq[64];
-static int usb_kq_n, usb_kq_at;
-static cvmouse_t usb_mouse;
+static cvkey_t usb_kq[32];              // as sdk/cvusb.c's: rings that keep 31 and 63
+static int usb_kq_head, usb_kq_tail;
+static cvmouse_t usb_mice;
 static struct { int n; uint8_t m[3]; } usb_mq[64];
-static int usb_mq_n, usb_mq_at;
+static int usb_mq_head, usb_mq_tail;
+static uint32_t usb_midi_dropped;
 
 static void usb_mode_now(cvusb_mode_t m) {
     if (m == usb_mode) return;
@@ -565,7 +582,10 @@ static void usb_mode_now(cvusb_mode_t m) {
 // the keyboard's reports, read by the SDK's own cvusb_keys.c
 static void usb_key_event(const cvkey_t *k, void *ctx) {
     (void)ctx;
-    if (usb_mode == CVUSB_HOST && CVUSB_KEYBOARD && usb_kq_n < 64) usb_kq[usb_kq_n++] = *k;
+    const int next = (usb_kq_tail + 1) % 32;
+    if (usb_mode != CVUSB_HOST || !CVUSB_KEYBOARD || next == usb_kq_head) return;     // full: dropped
+    usb_kq[usb_kq_tail] = *k;
+    usb_kq_tail = next;
 }
 
 static void usb_key_report(void) {
@@ -574,36 +594,69 @@ static void usb_key_report(void) {
     cvkeys_report(&usb_keys, r, 8, usb_key_event, NULL);
 }
 
-static void usb_mouse_report(int dx, int dy, uint8_t buttons, int wheel) {
+// a USB keyboard's key went down or up, by its HID usage: the modifiers
+// (E0-E7) are bits of its boot report's first byte, the rest among its six
+// keys; for the SDK's reader (cvusb_keys.c), and the example's own (usbin_*)
+static void usb_key(uint8_t u, bool down) {
+    kb_count = 1;
+    if (kq_at >= kq_n) kq_at = kq_n = 0;    // all taken: the queue starts again
+    if (kq_n < 64) { kq[kq_n].usage = u; kq[kq_n++].down = down; }
+    if (u >= 0xE0 && u <= 0xE7) {
+        const uint8_t bit = (uint8_t)(1u << (u - 0xE0));
+        kb_mods = down ? (uint8_t)(kb_mods | bit) : (uint8_t)(kb_mods & ~bit);
+    } else {
+        for (int i = 0; i < 6; i++) if (kb_down[i] == u) kb_down[i] = 0;
+        if (down) for (int i = 0; i < 6; i++) if (!kb_down[i]) { kb_down[i] = u; break; }
+    }
+    usb_key_report();
+}
+
+// a USB mouse moved, or its buttons or wheel did: for the SDK's reader, and
+// the example's own
+static void usb_mouse(int dx, int dy, uint8_t buttons, int wheel) {
+    mouse_seen = 1;
+    mouse_dx += dx;
+    mouse_dy += dy;
+    mouse_btn = buttons;
     if (usb_mode != CVUSB_HOST || !CVUSB_MOUSE) return;
     do {                                // a report moves 127 at most
         const int x = dx > 127 ? 127 : dx < -127 ? -127 : dx, y = dy > 127 ? 127 : dy < -127 ? -127 : dy;
-        const uint8_t r[4] = {buttons, (uint8_t)x, (uint8_t)y, (uint8_t)wheel};
-        cvmouse_report(&usb_mouse, r, 4);
+        const int w = wheel > 127 ? 127 : wheel < -127 ? -127 : wheel;
+        const uint8_t r[4] = {buttons, (uint8_t)x, (uint8_t)y, (uint8_t)w};
+        cvmouse_report(&usb_mice, r, 4);
         dx -= x;
         dy -= y;
-        wheel = 0;
-    } while (dx || dy);
+        wheel -= w;
+    } while (dx || dy || wheel);
 }
 
-// MIDI bytes as USB-MIDI packets and back, by the SDK's own cvusb_midi.c
-static void usb_midi_in(const char *hex) {
-    uint8_t bytes[64], pk[64][4], st = 0, m[3];
-    uint32_t n = 0;
-    for (char *p = (char *)hex; *p && n < sizeof bytes;) {
-        bytes[n++] = (uint8_t)strtol(p, &p, 16);
-        if (*p == ',') p++;
-    }
+// MIDI bytes as USB-MIDI packets and back, by the SDK's own cvusb_midi.c:
+// what a MIDI device on the hub plays (a host), or what the computer sends
+// (a device)
+static void usb_midi_bytes(const uint8_t *bytes, uint32_t n) {
+    uint8_t pk[64][4], st = 0, m[3];
     if (usb_mode == CVUSB_HOST) usb_midi_dev = true;
     const bool on = (usb_mode == CVUSB_HOST && CVUSB_MIDI_IN) || (usb_mode == CVUSB_DEVICE && CVUSB_MIDI_OUT);
     const int k = cvmidi_pack(bytes, n, pk, 64, &st);
     for (int i = 0; on && i < k; i++) {
         const int len = cvmidi_msg(pk[i], m);
-        if (len && usb_mq_n < 64) {
-            usb_mq[usb_mq_n].n = len;
-            memcpy(usb_mq[usb_mq_n++].m, m, 3);
-        }
+        if (!len) continue;
+        const int next = (usb_mq_tail + 1) % 64;
+        if (next == usb_mq_head) { usb_midi_dropped++; continue; }
+        usb_mq[usb_mq_tail].n = len;
+        memcpy(usb_mq[usb_mq_tail].m, m, 3);
+        usb_mq_tail = next;
     }
+}
+
+static void usb_midi_in(const char *hex) {
+    uint8_t bytes[64];
+    uint32_t n = 0;
+    for (char *p = (char *)hex; *p && n < sizeof bytes;) {
+        bytes[n++] = (uint8_t)strtol(p, &p, 16);
+        if (*p == ',') p++;
+    }
+    usb_midi_bytes(bytes, n);
 }
 
 void cvusb_start(void) {
@@ -645,7 +698,7 @@ const char *cvusb_mode_name(cvusb_mode_t m) {            // as sdk/cvusb.c
 void cvusb_status(cvusb_status_t *s) {
     memset(s, 0, sizeof *s);
     if (usb_mode == CVUSB_HOST) {
-        s->pads = CVUSB_PADS && pad_in;
+        s->pads = (uint8_t)(CVUSB_PADS ? cvpad_count() : 0);
         s->keyboards = (uint8_t)(CVUSB_KEYBOARD && kb_count);
         s->mice = (uint8_t)(CVUSB_MOUSE && mouse_seen);
         s->midi = CVUSB_MIDI_IN && usb_midi_dev;
@@ -659,21 +712,24 @@ const char *cvusb_pad_kind(int n) { return usb_mode == CVUSB_HOST && CVUSB_PADS 
 uint32_t cvusb_pad_dirs(const gamepad_t *p) { return cvpad_dirs(p); }
 
 bool cvusb_key(cvkey_t *k) {
-    if (usb_kq_at >= usb_kq_n) return false;
-    *k = usb_kq[usb_kq_at++];
+    if (usb_kq_head == usb_kq_tail) return false;
+    *k = usb_kq[usb_kq_head];
+    usb_kq_head = (usb_kq_head + 1) % 32;
     return true;
 }
 
 bool cvusb_mouse(cvmouse_t *m) {
-    *m = usb_mouse;
-    usb_mouse.dx = usb_mouse.dy = usb_mouse.wheel = 0;
+    *m = usb_mice;
+    usb_mice.dx = usb_mice.dy = usb_mice.wheel = 0;
     return usb_mode == CVUSB_HOST && CVUSB_MOUSE && mouse_seen;
 }
 
 int cvusb_midi_read(uint8_t msg[3]) {
-    if (usb_mq_at >= usb_mq_n) return 0;
-    memcpy(msg, usb_mq[usb_mq_at].m, 3);
-    return usb_mq[usb_mq_at++].n;
+    if (usb_mq_head == usb_mq_tail) return 0;
+    const int n = usb_mq[usb_mq_head].n;
+    memcpy(msg, usb_mq[usb_mq_head].m, 3);
+    usb_mq_head = (usb_mq_head + 1) % 64;
+    return n;
 }
 
 bool cvusb_midi_send(const uint8_t *m, uint32_t n) {
@@ -684,10 +740,11 @@ bool cvusb_midi_send(const uint8_t *m, uint32_t n) {
     for (uint32_t k = 0; k < n && k < 16; k++) snprintf(hex + 3 * k, 4, " %02X", m[k]);
     logline("midi%s%s", hex, to_device ? " (to the MIDI device)" : "");
     midi_bytes += n;
+    SIM_MIDI(m, n, to_device);
     return true;
 }
 
-uint32_t cvusb_midi_dropped(void) { return 0; }
+uint32_t cvusb_midi_dropped(void) { return usb_midi_dropped; }
 
 // ---- the PSRAM -------------------------------------------------------------------
 uint8_t host_psram[CVPSRAM_SIZE];

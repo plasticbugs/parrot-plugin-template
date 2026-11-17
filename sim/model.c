@@ -6,7 +6,7 @@
 // menu's launch block, USB, the PSRAM. It is included here whole, with:
 //
 //   - its SIM_* hooks (top of host.c) wired to the simulator: each TV frame,
-//     each PSG byte, each rule broken, the end
+//     each PSG byte, each rule broken, the end, the MIDI the plugin sends
 //   - its main() renamed host_main (unused): the simulator's main.c sets up
 //     what host.c's main() would, from the options instead of PC_* variables
 //   - its card's pread() and pwrite() pointed at card.c
@@ -33,6 +33,8 @@ static void model_mailbox(void);
 #define SIM_MAILBOX()       model_mailbox()
 #define SIM_FAIL()          sim_on_fail()
 #define SIM_END()           sim_on_end(fails)
+#define SIM_MIDI(b, n, dev) midi_send((b), (n), (dev), now_us)
+#define SIM_EVENT(w, v)     sim_on_event((w), (v))
 
 #undef _DEFAULT_SOURCE                  // (host.c defines it again; the headers have it already)
 #define main host_main
@@ -93,6 +95,8 @@ void model_init(void) {
         static char no_psram[] = "PC_NO_PSRAM=1";
         putenv(no_psram);
     }
+    if (opt.usb == USB_HOST) computer = false;          // a hub on the port, not a computer
+    if (opt.usb == USB_ASK) { computer = false; computer_asks = true; }
     if (card_present()) {
         card_fd = 3;
         sd_info.mb = card_mb();
@@ -115,30 +119,38 @@ void model_console(uint8_t held, int key) {
     key_held = key;
 }
 
-void model_usb_pad(bool in, const gamepad_t *p) {
-    pad_in = in;
-    if (in) pad_state = *p;
-    else memset(&pad_state, 0, sizeof pad_state);
+void model_usb_pad(int n, bool in, const gamepad_t *p, bool hid) {
+    if (n < 0 || n >= CVUSB_PAD_MAX) return;
+    pad_in[n] = in;
+    pad_kind[n] = hid ? "HID PAD" : "SWITCH PRO";
+    if (in) pad_state[n] = *p;
+    else memset(&pad_state[n], 0, sizeof pad_state[n]);
 }
 
-// host.c's keyboard and mouse are the usb-keyboard-mouse example's own
-// (usbin_*): a queue of key changes, and the mouse's movement since it was
-// last read
-void model_usb_key(uint8_t usage, bool down) {
-    kb_count = 1;
-    if (kq_at >= kq_n) kq_at = kq_n = 0;    // all taken: the queue starts again
-    if (kq_n < 64) {
-        kq[kq_n].usage = usage;
-        kq[kq_n++].down = down;
-    }
+// host.c's keyboard and mouse: boot reports for the SDK's own reader
+// (cvusb_keys.c, behind cvusb_key() and cvusb_mouse()), and the
+// usb-keyboard-mouse example's own queue (usbin_*), as the script's keydown=
+// and mouse= feed them
+void model_usb_key(uint8_t usage, bool down) { usb_key(usage, down); }
+
+void model_usb_keys_up(void) {
+    for (int i = 0; i < 6; i++)
+        if (kb_down[i]) usb_key(kb_down[i], false);
+    for (int b = 0; b < 8; b++)
+        if (kb_mods >> b & 1) usb_key((uint8_t)(0xE0 + b), false);
 }
 
-void model_usb_mouse(int dx, int dy, uint8_t buttons) {
-    mouse_seen = 1;
-    mouse_dx += dx;
-    mouse_dy += dy;
-    mouse_btn = buttons;
-}
+void model_usb_mouse(int dx, int dy, uint8_t buttons, int wheel) { usb_mouse(dx, dy, buttons, wheel); }
+
+// MIDI from the desktop's ports: as the script's midiin= (a MIDI device on
+// the hub, or the computer)
+void model_midi_in(const uint8_t *bytes, unsigned n) { usb_midi_bytes(bytes, n); }
+
+// a MIDI device on the hub from the start (a port is open), not only once it
+// has played something
+void model_midi_device(void) { usb_midi_dev = true; }
+
+int model_usb_mode(void) { return (int)usb_mode; }
 
 void model_end(void) { finish(); }
 const char *model_note(void) { return note; }

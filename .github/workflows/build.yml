@@ -37,7 +37,7 @@ jobs:
       - name: Run them on the console's model
         run: |
           # (the card examples need macOS's hdiutil, and MAME a BIOS: not here)
-          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames psram
+          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames psram usb
 
       - name: Screenshots
         run: |
@@ -66,13 +66,13 @@ jobs:
         run: |
           case "$RUNNER_OS" in
             macOS) brew install sdl3 ninja ;;
-            Linux) sudo apt-get update -q && sudo apt-get install -y -q ninja-build zlib1g-dev && sim/get-sdl.sh ;;
+            Linux) sudo apt-get update -q && sudo apt-get install -y -q ninja-build zlib1g-dev libasound2-dev && sim/get-sdl.sh ;;
             Windows) sim/get-sdl.sh ;;
           esac
 
       - name: The models alone, for the simulator's pictures to match
         if: runner.os != 'Windows'
-        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames psram vdp
+        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames psram vdp usb
 
       - name: The simulator, headless
         run: |

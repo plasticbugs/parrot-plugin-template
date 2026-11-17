@@ -20,7 +20,10 @@
 #                     Windows)
 #
 # Needs SDL3 (3.2 or later): docs/simulator.md says how to install it, and
-# sim/get-sdl.sh builds one into build-sim/sdl3, where this looks too.
+# sim/get-sdl.sh builds one into build-sim/sdl3, where this looks too. The
+# MIDI ports are RtMidi's, built here from sim/third_party/rtmidi: CoreMIDI
+# on macOS, WinMM on Windows, ALSA on Linux (libasound2-dev; without it, no
+# ports: --midi-log still works).
 cmake_minimum_required(VERSION 3.16)
 project(parrotsim C CXX)
 
@@ -145,9 +148,37 @@ if(APPLE)
   target_compile_options(plugin PRIVATE "-Dsection(x)=used")   # (as a definition, CMake drops it)
 endif()
 
+# ---- RtMidi: this computer's MIDI ports (sim/third_party/rtmidi, as it is) ------------
+set(RTMIDI "${CMAKE_CURRENT_LIST_DIR}/third_party/rtmidi")
+add_library(rtmidi STATIC "${RTMIDI}/RtMidi.cpp" "${RTMIDI}/rtmidi_c.cpp")
+target_include_directories(rtmidi PUBLIC "${RTMIDI}")
+if(MSVC)
+  target_compile_options(rtmidi PRIVATE /w /EHsc)       # (its warnings aren't ours to fix)
+else()
+  target_compile_options(rtmidi PRIVATE -w)
+endif()
+if(APPLE)
+  target_compile_definitions(rtmidi PRIVATE RTMIDI_API_CORE)
+  target_link_libraries(rtmidi PUBLIC "-framework CoreServices" "-framework CoreAudio" "-framework CoreMIDI"
+                                      "-framework CoreFoundation")
+elseif(WIN32)
+  target_compile_definitions(rtmidi PRIVATE RTMIDI_API_WINMM)
+  target_link_libraries(rtmidi PUBLIC winmm)
+else()
+  find_package(Threads REQUIRED)
+  target_link_libraries(rtmidi PUBLIC Threads::Threads)
+  find_package(ALSA QUIET)
+  if(ALSA_FOUND)
+    target_compile_definitions(rtmidi PRIVATE RTMIDI_API_ALSA)
+    target_link_libraries(rtmidi PUBLIC ALSA::ALSA)
+  else()
+    message(STATUS "no ALSA (libasound2-dev): no MIDI ports, only --midi-log")
+  endif()
+endif()
+
 # ---- the simulator -----------------------------------------------------------------
 add_executable(parrotsim
-  main.c model.c audio.c psg.c input.c card.c extra.c
+  main.c model.c audio.c psg.c input.c card.c extra.c midi.c
   "${KIT}/test/host/tms9918.c"
   "${SDK}/midihello/vdp.c" "${SDK}/sdplayer/fsro.c" "${SDK}/sdk/cvscreen.c" "${SDK}/sdk/swpro.c"
   "${SDK}/sdk/cvusb_keys.c" "${SDK}/sdk/cvusb_midi.c"
@@ -160,7 +191,7 @@ set_source_files_properties("${SDK}/sdk/cvscreen.c" PROPERTIES COMPILE_DEFINITIO
 target_include_directories(parrotsim PRIVATE ${includes})
 target_compile_options(parrotsim PRIVATE ${common_options})
 target_compile_definitions(parrotsim PRIVATE SIM_PLUGIN_ID="${plugin_id}" SIM_PLUGIN_NAME="${plugin_name}" ${plugin_features})
-target_link_libraries(parrotsim PRIVATE SDL3::SDL3)
+target_link_libraries(parrotsim PRIVATE SDL3::SDL3 rtmidi)
 if(ZLIB_FOUND)
   target_link_libraries(parrotsim PRIVATE ZLIB::ZLIB)
 else()

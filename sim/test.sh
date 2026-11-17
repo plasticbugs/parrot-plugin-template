@@ -15,7 +15,7 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames psram vdp. Pictures and logs: build-sim/test/.
+# sd-card open-file frames psram vdp usb. Pictures and logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
 # told not to turn the card's "/NOTES/..." into a path on this computer)
@@ -53,6 +53,14 @@ run() {
     grep '^  [0-9]* ms' "$o/run.txt" || true
     [ -f "$o/screen.png" ] && { "$py" -I "$kit/tools/png256.py" check "$o/screen.png" >/dev/null || fail "screen.png isn't a 256x192 screenshot"; }
     same_as "$name"
+}
+
+# midi_log FILE LINE... -- what --midi-log wrote: these lines, no others
+midi_log() {
+    [ -z "$skip" ] || return 0
+    f=$1; shift
+    printf '%s\n' "$@" > "$f.want"
+    cmp -s "$f" "$f.want" || { fail "$f isn't what the plugin should have sent:"; diff "$f.want" "$f" | head -8 | sed 's/^/    /'; }
 }
 
 # same_as NAME [picture] -- the last run's picture and log against test/run.sh's
@@ -183,6 +191,39 @@ if wanted vdp; then
         run "vdp-$k" "$kit/test/vdp" --ms 1500 --script "100:key=$k"
         expect 'note "VDP test"'
     done
+fi
+# the SDK's USB features (test/usb/main.c writes each input to its note).
+# First the models' own script words, as test/run.sh; then the desktop's
+# devices, made up (the script's sim* words: sim/input.c), through all of
+# what reads a real keyboard, mouse and game pad.
+if wanted usb; then
+    run usb-host "$kit/test/usb" --ms 3000 --script "$(cat "$kit/test/usb/host.script")" --midi-log "$out/usb-host.midi"
+    expect 'note "key 04 dn 41 m02"' 'note "mouse -300,5 w-2 b0"' 'note "pad2 HID PAD 00000020"' 'note "joy 11 key 5"'
+    midi_log "$out/usb-host.midi" '  2502 90 3C 64 (to the MIDI device)' '  2602 F8 (to the MIDI device)'
+    run usb-device "$kit/test/usb" --ms 2000 --script "$(cat "$kit/test/usb/device.script")" --midi-log "$out/usb-device.midi"
+    expect 'note "usb ON A COMPUTER"' ' midi C0 05'
+    grep -q 'to the MIDI device' "$o/log.txt" && fail "MIDI went to a MIDI device, not to the computer"
+    midi_log "$out/usb-device.midi" '   500 90 3C 64' '   533 80 3C 00' '   700 C0 05'
+    # --usb: as the plugin asked (a computer listening: MIDI_OUT), a hub, a computer that asks
+    run usb-flag-host "$kit/test/usb" --usb host --ms 2000
+    expect '^  1501 usb: the port is a host'
+    run usb-flag-ask "$kit/test/usb" --usb ask --ms 2000
+    expect 'note "usb ALLOW IT ON THE COMPUTER"'
+    # the keyboard: through cvusb_keys.c, as a USB keyboard's reports; only in its F2 role
+    run usb-keyboard "$kit/test/usb" --usb host --ms 2500 --script "1600:simkey=05 1650:simkeyup=05 1700:simrole=keyboard 1720:simkey=E1 1740:simkey=04 1760:simkeyup=04 1780:simkeyup=E1 1800:simkey=1E 1820:simkeyup=1E 1840:simkey=28 1860:simkey=E0 1880:simrole=controller"
+    expect 'note "key E1 dn 00 m02"' 'note "key 04 dn 41 m02"' 'note "key 04 up 41 m02"' 'note "key E1 up 00 m00"' 'note "key 1E dn 31 m00"' \
+        'note "key 28 dn 0D m00"' 'note "key E0 dn 00 m01"' 'note "key 28 up 0D m01"' 'note "key E0 up 00 m00"'
+    grep -q 'note "key 05' "$o/log.txt" && fail "a key reached the USB keyboard in the controller's role"
+    # the mouse: moves, buttons, the wheel; its buttons let go when F2 takes the keyboard away
+    run usb-mouse "$kit/test/usb" --usb host --ms 2500 --script "1600:simmouse=5,5,1 1650:simmouse=0,0,0 1700:simrole=keyboard 1720:simmouse=40,-20,1,1 1760:simmouse=-300,0,3,-2 1800:simmouse=0,0,2 1900:simrole=pad"
+    expect 'note "mouse 40,-20 w1 b1"' 'note "mouse -300,0 w-2 b3"' 'note "mouse 0,0 w0 b2"' 'note "mouse 0,0 w0 b0"'
+    grep -Eq '^  1(6[0-9][0-9]|70[0-9]) note "mouse' "$o/log.txt" && fail "the mouse reached the USB mouse outside its F2 role"
+    # two game pads: their slots, kinds, buttons and sticks; pad 1 the console's controller too
+    run usb-pads "$kit/test/usb" --usb host --ms 3000 --script "1600:simpad=switch 1650:simbuttons=1:south+l+minus 1700:simsticks=1:16000,-30000,0,0 1750:simpad=hid 1800:simbuttons=2:east+zr 1850:simsticks=2:0,0,-32768,32767 1900:simunplug=1 1950:simrole=pad 2000:simrole=controller 2050:simpad=switch 2100:simbuttons=3:north 2150:simbuttons=2:"
+    expect 'note "pad1 SWITCH PRO 00001110"' 'note "pad1 at 1000,1875 0,0"' 'note "joy 10 key 10"' 'note "joy 11 key 10"' \
+        'note "pad2 HID PAD 00000820"' 'note "pad2 at 0,0 -2048,-2047"' 'note "pad1 OFF' 'note "pad1 SWITCH PRO 00000080"' 'note "pad2 HID PAD 00000000"'
+    expect '^  1935 note "joy 20 key -1"' '^  1952 note "pad1 SWITCH PRO 00000000"' '^  2002 note "pad1 OFF' '^  2052 note "pad1 SWITCH PRO 00000000"'
+    grep -q 'note "pad2 OFF' "$o/log.txt" && fail "pad 2 lost its slot when pad 1 was unplugged"
 fi
 
 [ $compared = 0 ] && echo "(no test/host pictures to compare with: test/run.sh hasn't run here)"

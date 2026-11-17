@@ -46,8 +46,8 @@ static char **args;
 static SDL_Window *window;
 static SDL_Renderer *renderer;
 static SDL_Texture *texture;
-static bool ending, quitting, strict_stop;
-static int mark_frames, fails_seen, shown_fails = -1, shown_role = -1;
+static bool ending, quitting, strict_stop, midi_list_only;
+static int mark_frames, label_frames, fails_seen, shown_fails = -1, shown_role = -1;
 static uint64_t frames;
 
 // ---- usage -------------------------------------------------------------------------------
@@ -56,14 +56,19 @@ static const char KEYS[] =
     "  arrows or WASD   the console's stick\n"
     "  Z, X             its left and right fire buttons\n"
     "  0-9, -, =        its keypad: the digits, * and #\n"
-    "  a game pad       the stick (d-pad or left stick) and fire buttons too, Back and\n"
-    "                   Start as * and #; and the first pad is the plugin's USB pad 1\n"
+    "  game pads        the first is the console's controller too (d-pad or left\n"
+    "                   stick, face buttons as fire, Back and Start as * and #); the\n"
+    "                   first two are the plugin's USB pads 1 and 2\n"
     "  F2               the keyboard's role: the controller, a USB pad, or a USB\n"
-    "                   keyboard and mouse\n"
+    "                   keyboard and mouse (then every key but F1, F2, F5 and F12 is\n"
+    "                   the plugin's, Esc too, and the window keeps the mouse)\n"
     "  F5               the console's RESET: the plugin ends, the menu's note shows\n"
     "  F12              a screenshot, 256x192, the size the plugin registry wants\n"
     "  F1               these keys\n"
-    "  Esc              quit (closing the window too)\n";
+    "  Esc              quit (closing the window too)\n"
+    "In the USB pad role: arrows the d-pad; Z X A S south, east, west, north; Q W L\n"
+    "and R; E R ZL and ZR; Enter + (Start); Backspace - (Back); H Home; I J K L the\n"
+    "left stick.\n";
 
 static void usage(FILE *f) {
     fprintf(f,
@@ -87,11 +92,28 @@ static void usage(FILE *f) {
             "  --lists          also lists.bin there, for tools/mame-replay.sh\n"
             "  --no-psram       as a cart whose PSRAM doesn't answer\n"
             "\n"
-            "Headless, for tests (no window, no sound; it always ends by itself):\n"
-            "  --headless       on: SDL's offscreen video and dummy audio, lists.bin kept\n"
+            "The USB port and MIDI (the plugin's cvcart_features()):\n"
+            "  --usb WHAT       what is on the cart's USB port, for a plugin with MIDI_OUT:\n"
+            "                   device (a computer that takes the cart: the default), host\n"
+            "                   (a hub: the port looks for a computer for 1.5 s, then is a\n"
+            "                   host), ask (a computer that asks its user first)\n"
+            "  --midi-in NAME   read only this MIDI input (any part of its name); all (the\n"
+            "                   default with MIDI_IN) or none\n"
+            "  --midi-out NAME  send the plugin's MIDI to this port; virtual (the default\n"
+            "                   with MIDI_OUT, not on Windows: a port named after the\n"
+            "                   plugin, both ways, as the cart on a computer) or none\n"
+            "  --midi-log FILE  what the plugin sends, a line a message: its time in ms\n"
+            "                   and its bytes\n"
+            "  --midi-list      list this computer's MIDI ports, and stop\n"
+            "\n"
+            "Headless, for tests (no window, no sound, no MIDI port unless --midi-in or\n"
+            "--midi-out names one; it always ends by itself):\n"
+            "  --headless       on: SDL's dummy video and audio, lists.bin kept\n"
             "  --frames N       end after N TV frames (default 600: 10 seconds)\n"
             "  --ms N           end after N milliseconds of console time (as PC_END)\n"
-            "  --script S       inputs, in test/host's PC_SCRIPT language: \"500:joy=up 900:key=5\"\n"
+            "  --script S       inputs, in test/host's PC_SCRIPT language: \"500:joy=up 900:key=5\";\n"
+            "                   and the simulator's own: simkey=, simmouse=, simpad= ...\n"
+            "                   (docs/simulator.md)\n"
             "  --shot FILE.png  the last picture\n"
             "  --wav FILE.wav   the sound (48 kHz, 16-bit, mono)\n"
             "\n"
@@ -140,6 +162,17 @@ static void parse(int argc, char **argv) {
         else if (!strcmp(a, "--script")) opt.script = need(argc, argv, &i);
         else if (!strcmp(a, "--shot")) opt.shot = need(argc, argv, &i);
         else if (!strcmp(a, "--wav")) opt.wav = need(argc, argv, &i);
+        else if (!strcmp(a, "--usb")) {
+            const char *v = need(argc, argv, &i);
+            if (!strcmp(v, "device")) opt.usb = USB_DEVICE;
+            else if (!strcmp(v, "host")) opt.usb = USB_HOST;
+            else if (!strcmp(v, "ask")) opt.usb = USB_ASK;
+            else { fprintf(stderr, "--usb: device, host or ask\n"); exit(2); }
+        }
+        else if (!strcmp(a, "--midi-in")) opt.midi_in = need(argc, argv, &i);
+        else if (!strcmp(a, "--midi-out")) opt.midi_out = need(argc, argv, &i);
+        else if (!strcmp(a, "--midi-log")) opt.midi_log = need(argc, argv, &i);
+        else if (!strcmp(a, "--midi-list")) midi_list_only = true;
         else { fprintf(stderr, "what is %s? (--help)\n", a); exit(2); }
     }
     if (opt.end_us == -2) opt.end_us = opt.headless ? 600 * 16683 : -1;
@@ -175,6 +208,17 @@ static void present(uint8_t pic[SIM_H][SIM_W], uint8_t backdrop) {
         SDL_SetRenderDrawColor(renderer, 252, 85, 84, 255);
         SDL_RenderFillRect(renderer, &r);
     }
+    if (label_frames > 0) {                 // the keyboard's role, for a moment after it changes
+        label_frames--;
+        char t[64];
+        snprintf(t, sizeof t, "F2 KEYS: %s", input_role_label());
+        const float lh = opt.tv ? 240.0f : (float)SIM_H;
+        const SDL_FRect r = {0, lh - 11, 8.0f * (float)strlen(t) + 4, 11};
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderFillRect(renderer, &r);
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDebugText(renderer, 2, lh - 9, t);
+    }
     (void)h;
     SDL_RenderPresent(renderer);
 }
@@ -185,9 +229,9 @@ static void set_title(void) {
     shown_role = input_role();
     char t[512];
     if (fails_seen)
-        snprintf(t, sizeof t, "%s - %s - %d problem%s (see the terminal) - F1 keys", opt.name, input_role_name(), fails_seen,
-                 fails_seen == 1 ? "" : "s");
-    else snprintf(t, sizeof t, "%s - %s - F1 keys", opt.name, input_role_name());
+        snprintf(t, sizeof t, "%s - keys: %s (F2) - %d problem%s (see the terminal) - F1 help", opt.name, input_role_name(),
+                 fails_seen, fails_seen == 1 ? "" : "s");
+    else snprintf(t, sizeof t, "%s - keys: %s (F2) - F1 help", opt.name, input_role_name());
     SDL_SetWindowTitle(window, t);
 }
 
@@ -245,26 +289,34 @@ void sim_on_frame(uint64_t t_us) {
     if (ending) return;
     frames++;
     audio_frame(t_us);
+    midi_poll();
     if (strict_stop) {
         printf("--strict: stopped at the first broken rule, %.0f ms in\n", (double)t_us / 1e3);
         model_end();
     }
     if (opt.headless) {
         if (window) {
-            SDL_Event e;
-            while (SDL_PollEvent(&e))
-                if (e.type == SDL_EVENT_QUIT) { quitting = true; model_end(); }
+            sim_keys_t k;
+            input_poll(&k);                 // the script's made-up devices (sim* words), if any
+            if (k.quit) { quitting = true; model_end(); }
             model_picture(pic);
             present(pic, model_backdrop());
         }
+        if (midi_ports_open()) pace_wall();     // MIDI with the world: at the console's own speed
         return;
     }
     model_picture(pic);
     present(pic, model_backdrop());
     sim_keys_t k;
     input_poll(&k);
-    if (k.help) printf("%s", KEYS);
-    if (k.role_next) input_set_role(input_role() + 1);
+    if (k.help) {
+        printf("%s", KEYS);
+        if (midi_summary()[0]) printf("%s\n", midi_summary());
+    }
+    if (k.role_next) {
+        input_set_role(input_role() + 1);
+        label_frames = 180;
+    }
     if (k.shot) screenshot();
     if (k.quit) { quitting = true; model_end(); }
     if (k.reset) {
@@ -274,6 +326,16 @@ void sim_on_frame(uint64_t t_us) {
     set_title();
     if (audio_live()) audio_pace();
     else pace_wall();
+}
+
+// the script's words for the desktop's devices: simkey=, simmouse=, simpad= ... (input.c)
+bool sim_on_event(const char *what, const char *v) {
+    if (strncmp(what, "sim", 3)) return false;
+    if (!window) {
+        fprintf(stderr, "PC_SCRIPT: %s= needs SDL's dummy video, and there is none here\n", what);
+        exit(2);
+    }
+    return input_script(what + 3, v);
 }
 
 void sim_on_fail(void) {
@@ -338,6 +400,7 @@ void sim_on_end(int fails) {
     ending = true;
     card_sync();
     audio_close();
+    midi_close();
     if (opt.shot) {
         model_picture(pic);
         model_png(opt.shot, pic);
@@ -360,6 +423,15 @@ static void headless_sdl(void) {
     SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "dummy", SDL_HINT_OVERRIDE);
     SDL_SetHintWithPriority(SDL_HINT_RENDER_DRIVER, "software", SDL_HINT_OVERRIDE);
     SDL_SetHint(SDL_HINT_MAC_BACKGROUND_APP, "1");
+    // game pads: only the script's made-up ones (simpad=), never this computer's.
+    // Its pad drivers off, where SDL has a switch for them (by name: an SDL
+    // that doesn't know one leaves it be), and input.c ignores any other pad
+    static const char *const pad_drivers[] = {"SDL_JOYSTICK_HIDAPI", "SDL_JOYSTICK_IOKIT", "SDL_JOYSTICK_MFI",
+                                              "SDL_JOYSTICK_RAWINPUT", "SDL_JOYSTICK_WGI", "SDL_JOYSTICK_GAMEINPUT",
+                                              "SDL_JOYSTICK_DIRECTINPUT", "SDL_XINPUT_ENABLED"};
+    for (size_t i = 0; i < sizeof pad_drivers / sizeof pad_drivers[0]; i++)
+        SDL_SetHintWithPriority(pad_drivers[i], "0", SDL_HINT_OVERRIDE);
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");   // (a hidden window never has the focus)
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
         fprintf(stderr, "headless: no SDL video (%s): pictures from the models only\n", SDL_GetError());
         return;
@@ -378,6 +450,10 @@ int main(int argc, char **argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     args = argv;
     parse(argc, argv);
+    if (midi_list_only) {
+        midi_list();
+        return 0;
+    }
     static char out[4096];
     if (!opt.out) {
         const char *base = SDL_GetBasePath();
@@ -399,8 +475,10 @@ int main(int argc, char **argv) {
         video_open();
         input_init(window);
         printf("%s on the Parrot Cart simulator. F1 shows the keys; the keyboard is the %s.\n", opt.name, input_role_name());
+        label_frames = 180;
     }
     audio_open();
+    midi_open();
     model_init();
     model_run();
     return 0;

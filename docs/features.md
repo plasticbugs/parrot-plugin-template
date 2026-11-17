@@ -213,11 +213,17 @@ from `CMakeLists.txt`, and its script can plug things in
 
 | Script | What happens |
 |---|---|
-| `pad=south+left`, `lstick=1500,-900`, `pad=off` | a game pad |
-| `keydown=04`, `keyup=04`, `mods=02` | a keyboard, by USB code |
+| `pad=south+left`, `lstick=1500,-900`, `rstick=0,2047`, `pad=off` | a game pad |
+| `pad2=east`, `lstick2=...`, `rstick2=...` | a second game pad |
+| `padkind=hid`, `pad2kind=hid` | a pad that isn't a Switch Pro Controller (`switch` is one) |
+| `keydown=04`, `keyup=04`, `mods=02` | a keyboard, by USB code (`E0` to `E7` are the modifiers) |
 | `mouse=40,20,1,1` | a mouse: dx, dy, buttons, wheel |
 | `midiin=90,3C,64` | MIDI that comes in |
 | `computer=0`, `computer=ask` | no computer on the port, or one that asks its user |
+
+The simulator (docs/simulator.md) reads `cvcart_features()` too. It
+gives the plugin your computer's game pads, keyboard, mouse and MIDI
+ports.
 
 What the model can't check is the cart: real devices, a real hub, a real
 computer. Try those on a console.

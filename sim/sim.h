@@ -8,7 +8,8 @@
 //   main.c    options, the window, each TV frame, RESET, the end
 //   model.c   host.c's models, and the few calls the rest makes into them
 //   input.c   keyboard, mouse and game pads -> the console's controller,
-//             a USB pad, a USB keyboard and mouse
+//             USB pads 1 and 2, a USB keyboard and mouse
+//   midi.c    the desktop's MIDI ports -> USB MIDI in and out (RtMidi)
 //   psg.c     the SN76489A; audio.c its timing, the speakers, the WAV
 //   card.c    the SD card: a folder (a FAT32 volume made from it) or an image
 //   compat/   what MSVC and a machine without zlib lack
@@ -25,6 +26,7 @@
 #define SIM_RATE 48000                  // audio samples a second
 
 // ---- options -----------------------------------------------------------------------
+enum { USB_AUTO, USB_DEVICE, USB_HOST, USB_ASK };   // --usb: what is on the cart's USB port
 typedef struct {
     bool headless;                      // no window, no sound: the test mode
     bool strict;                        // stop at the first rule broken
@@ -44,6 +46,10 @@ typedef struct {
     bool no_launch;                     // started without the menu's launch block
     bool no_psram;
     bool lists;                         // keep lists.bin (headless: on)
+    int usb;                            // USB_*: a computer (the default with MIDI_OUT), a hub, one that asks
+    const char *midi_in;                // --midi-in: "all", "none" or a port's name (NULL: the default)
+    const char *midi_out;               // --midi-out: "virtual", "none" or a port's name (NULL: the default)
+    const char *midi_log;               // --midi-log: what the plugin sends, a message a line
 } sim_opts_t;
 
 extern sim_opts_t opt;
@@ -53,9 +59,13 @@ void model_init(void);                  // host.c's main(), with opt
 void model_run(void);                   // the plugin's main(); doesn't return
 void model_picture(uint8_t pic[SIM_H][SIM_W]);   // the TV now (vdp_rgb's colours)
 void model_console(uint8_t held, int key);       // controller 1: WIRED_* bits, key -1 or 0-11
-void model_usb_pad(bool in, const gamepad_t *p); // USB pad 0
-void model_usb_key(uint8_t usage, bool down);    // a USB keyboard's key (HID usage)
-void model_usb_mouse(int dx, int dy, uint8_t buttons);
+void model_usb_pad(int n, bool in, const gamepad_t *p, bool hid);  // USB pad n (0, 1): a Switch Pro or HID pad
+void model_usb_key(uint8_t usage, bool down);    // a USB keyboard's key (HID usage; E0-E7 the modifiers)
+void model_usb_keys_up(void);                    // every key it holds, let go
+void model_usb_mouse(int dx, int dy, uint8_t buttons, int wheel);
+void model_midi_in(const uint8_t *bytes, unsigned n);   // MIDI in: whole messages
+void model_midi_device(void);           // a MIDI device is on the hub (a port is open)
+int model_usb_mode(void);               // cvusb_mode()'s, as an int
 void model_end(void);                   // RESET: the session ends (doesn't return)
 const char *model_note(void);           // the plugin's note for the menu
 int model_fails(void);                  // rules broken so far
@@ -67,6 +77,7 @@ extern const uint8_t vdp_rgb[16][3];
 void sim_on_frame(uint64_t t_us);       // a TV frame starting at t_us has run
 void sim_on_fail(void);
 void sim_on_end(int fails);             // the session is over; may not return
+bool sim_on_event(const char *what, const char *v);   // a script word host.c doesn't know: true if it is ours
 
 // ---- audio.c -------------------------------------------------------------------------
 typedef struct {
@@ -96,9 +107,20 @@ typedef struct {
 void input_init(void *window);          // live: game pads
 void input_poll(sim_keys_t *k);         // events -> the models; the simulator's keys
 int input_role(void);
-const char *input_role_name(void);
+const char *input_role_name(void);      // for the title and the terminal: "controller" ...
+const char *input_role_label(void);     // for the window's corner: "THE CONTROLLER" ...
 void input_set_role(int role);
 bool input_start_pressed(void);         // RESET's screen: fire, Enter, Space, a pad's A or Start
+bool input_script(const char *what, const char *v);   // the script's sim* words: the desktop's devices, made up
+
+// ---- midi.c --------------------------------------------------------------------------
+void midi_open(void);                   // the ports, by the options and the plugin's features
+void midi_poll(void);                   // each frame: MIDI in from the ports, to the model
+void midi_send(const uint8_t *b, unsigned n, bool to_device, uint64_t t_us);   // the plugin's (host.c's SIM_MIDI)
+void midi_close(void);
+void midi_list(void);                   // --midi-list: the ports there are
+const char *midi_summary(void);         // for the terminal: where MIDI goes ("" without MIDI)
+bool midi_ports_open(void);             // a port of this computer's is open
 
 // ---- card.c --------------------------------------------------------------------------
 bool card_open(const char *path);       // a folder or a disk image; false: an error, said
