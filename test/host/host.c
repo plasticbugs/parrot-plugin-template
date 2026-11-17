@@ -67,13 +67,25 @@
 #include "cvusb.h"
 #include "cvusb_midi.h"
 #include "mailbox.h"
+#include "tms9918.h"
 
 int plugin_main(void);
+
+// ---- the simulator's hooks --------------------------------------------------------
+// sim/model.c builds this file into the simulator (sim/README.md) with these
+// defined; here they do nothing.
+#ifndef SIM_HOOKS
+#define SIM_FRAME()                 // a TV frame has run, its list too
+#define SIM_PSG(bytes, n, t)        // the frame kernel writes n PSG bytes, t Z80 cycles into the frame
+#define SIM_MAILBOX()               // the plugin publishes the mailbox: mbox is new, mbox_live old
+#define SIM_FAIL()                  // a rule broken (fail() has said which)
+#define SIM_END()                   // the end, just before the exit
+#endif
 
 // ---- the test's clock, log and end -----------------------------------------------
 #define FRAME_US 16683
 static uint64_t now_us = 1000;
-static uint32_t end_us = 3000000;
+static uint64_t end_us = 3000000;
 static const char *out_dir = ".";
 static FILE *logf, *listf;
 static int fails;
@@ -101,6 +113,7 @@ static void fail(const char *fmt, ...) {
     fputc('\n', logf);
     va_end(ap);
     fails++;
+    SIM_FAIL();
 }
 
 uint32_t time_us_32(void) { now_us += 100; return (uint32_t)now_us; }
@@ -229,6 +242,7 @@ static void png(const char *name, uint8_t pic[VDP_H][VDP_W]) {
 // ---- the screen kernel (cvkernel.h; midihello.asm) -------------------------------
 static bool k_on, f_on;                 // which kernel the plugin started
 static uint8_t k_vram[VRAM_SIZE];       // the console's VRAM
+static uint8_t k_reg[8] = {0x02, 0xE0, 0x0E, 0xFF, 0x03, 0x76, 0x03, 0x01};   // its registers, as midihello.asm sets them
 static bool k_hello = true;             // it has run no list yet
 static uint8_t k_done;                  // the last list it ran, or took as done
 static struct { bool out, full; uint8_t seq; size_t n; uint8_t bytes[LIST_SIZE]; } k_list;
@@ -251,7 +265,7 @@ static void list_record(char kernel, bool full, uint8_t seq, const uint8_t *b, s
 static void k_frame(void) {
     if (k_list.out) {                   // LIST_SEQ changed: run it, or (just started, and it isn't a whole screen) skip it
         if (!k_hello || k_list.full) {
-            if (!vdp_run(k_vram, NULL, k_list.bytes, k_list.n)) fail("the console can't run list %u: it is malformed", k_list.seq);
+            if (!vdp_run(k_vram, k_reg, k_list.bytes, k_list.n)) fail("the console can't run list %u: it is malformed", k_list.seq);
             k_hello = false;
         }
         k_done = k_list.seq;
@@ -308,6 +322,7 @@ void cvk_publish(void) {
         logline("sound%s noise@%u", line, s[9] & 15u);
         sounds_sent++;
     }
+    SIM_MAILBOX();
     memcpy(mbox_live, mbox, MB_SIZE);
 }
 
@@ -366,6 +381,7 @@ static void f_run(const uint8_t *s, size_t n) {
             char hex[3 * 16 + 1] = "";
             for (int k = 0; k < s[i + 1] && k < 16; k++) snprintf(hex + 3 * k, 4, " %02X", s[i + 2 + k]);
             logline("psg%s", hex);
+            SIM_PSG(s + i + 2, s[i + 1], t);
             f_psg_bytes += s[i + 1];
             t += 75 + 52u * s[i + 1];
             i += 2u + s[i + 1];
@@ -390,20 +406,6 @@ static void f_frame(void) {
         f_run(f_list.bytes, f_list.n);
         f_list.waiting = false;
         f_taken++;
-    }
-}
-
-static void f_picture(uint8_t pic[VDP_H][VDP_W]) {
-    for (int p = 0; p < 768; p++) {
-        const int tile = (p & ~255) + f_vram[0x1800 + p];
-        for (int r = 0; r < 8; r++) {
-            const uint8_t pat = f_vram[tile * 8 + r], col = f_vram[0x2000 + tile * 8 + r];
-            for (int b = 0; b < 8; b++) {
-                uint8_t c = pat >> (7 - b) & 1 ? col >> 4 : col & 15;
-                if (!c) c = f_reg[7] & 15;
-                pic[(p / 32) * 8 + r][(p % 32) * 8 + b] = c;
-            }
-        }
     }
 }
 
@@ -693,10 +695,14 @@ bool cvpsram_init(void) { return !getenv("PC_NO_PSRAM"); }
 const uint8_t *cvpsram_id(void) { static const uint8_t id[8] = {0x0D, 0x5D, 0x52, 0xA2, 0x64, 0x31, 0x91, 0x31}; return id; }
 
 // ---- the frames, and the end -------------------------------------------------------
+// the TV's picture: either kernel's VRAM and registers, as the VDP shows them (tms9918.h)
+static void picture(uint8_t pic[VDP_H][VDP_W]) {
+    tms_picture(f_on ? f_vram : k_vram, f_on ? f_reg : k_reg, pic);
+}
+
 static void snapshot(const char *name) {
     static uint8_t pic[VDP_H][VDP_W];
-    if (f_on) f_picture(pic);
-    else vdp_picture(k_vram, C_BLACK, pic);
+    picture(pic);
     png(name, pic);
 }
 
@@ -718,6 +724,7 @@ static void finish(void) {
     printf(", note \"%s\"%s\n", note, fails ? " -- FAILED" : "");
     fclose(logf);
     fclose(listf);
+    SIM_END();
     exit(fails ? 1 : 0);
 }
 
@@ -727,6 +734,7 @@ static void console_step(void) {
         script_step();
         if (k_on) k_frame();
         if (f_on) f_frame();
+        SIM_FRAME();
     }
     if (now_us >= end_us) finish();
 }

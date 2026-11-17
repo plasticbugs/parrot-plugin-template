@@ -131,11 +131,14 @@ has. `examples/README.md` says which example shows what, and
 ## 5. Try it without the console
 
 ```sh
+sim/run.sh src             # your plugin in a window, with sound and controls
 test/run.sh hello          # your plugin, on a model of the console
 tools/screenshot.sh shot.png src 3000 "500:joy=up 1000:key=5"
 ```
 
-`docs/testing.md` has the rest, and what only a real console can tell you.
+The simulator needs SDL3: `docs/simulator.md` says how to install it, and
+which keys are the controller. `docs/testing.md` has the rest, and what
+only a real console can tell you.
 
 ## Things that go wrong
 

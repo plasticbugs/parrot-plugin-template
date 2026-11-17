@@ -41,10 +41,13 @@ run_one() {
     printf '%s\n' "$name"
     [ -d "$dir" ] || { echo "  (not here: $dir)"; return 0; }
     if ! "$kit/test/host/build.sh" "$dir" "$o/run" 2>"$o/build.log"; then
-        echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1; return 0
+        echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1
+        unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END; return 0
     fi
     if grep -v '^ld: warning' "$o/build.log" | grep -q 'warning:'; then echo "  FAIL: warnings:"; grep 'warning:' "$o/build.log" | sed 's/^/    /' | head; status=1; fi
     PC_OUT=$o "$o/run" || status=1
+    # (sh keeps a function's VAR=value prefixes set after it: not into the next run)
+    unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END
     for want in "$@"; do
         grep -Eq -- "$want" "$o/log.txt" || { echo "  FAIL: nothing in $o/log.txt matches: $want"; status=1; }
     done
@@ -161,6 +164,13 @@ fi
 if wanted psram; then
     PC_END=60000 run psram "$kit/examples/psram" 'note "PSRAM example: 8 MB right"'
     PC_NO_PSRAM=1 PC_END=1000 run psram-missing "$kit/examples/psram" 'note "PSRAM example: no PSRAM"'
+fi
+# the picture itself (test/host/tms9918.c): every VDP mode and the sprite
+# rules, against MAME's own TMS9928A (test/vdp/main.c has the cases)
+if wanted vdp; then
+    for k in 1 2 3 4 5 6; do
+        PC_END=1500 PC_SCRIPT="100:key=$k" run "vdp-$k" "$kit/test/vdp" 'note "VDP test"'
+    done
 fi
 
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
