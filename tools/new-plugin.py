@@ -17,9 +17,9 @@
 # What it writes: CMakeLists.txt (the features on), src/main.c (each
 # feature on the TV, working, and YOUR CODE where yours goes), src/icon.txt,
 # README.md (as docs/readme-spec.md says), LICENSE, THIRD-PARTY.md, the
-# plugin's tests in test/run.sh and the workflow's list of them. The rest
-# of the kit (cmake/, sdk/, lib/, test/, tools/, docs/, the workflows)
-# comes as it is. docs/features.md has each feature.
+# plugin's tests in test/run.sh and sim/test.sh, and the workflow's list of
+# them. The rest of the kit (cmake/, sdk/, lib/, sim/, test/, tools/, docs/,
+# the workflows) comes as it is. docs/features.md has each feature.
 #
 # Python 3.8 or newer, nothing beyond its standard library.
 import argparse
@@ -1069,6 +1069,7 @@ def readme(p):
             "- docs/getting-started.md: the tools, and the card",
             "- docs/features.md: the features",
             f"- docs/testing.md: `test/run.sh {' '.join(p.ci_tests())}` tries it on a model of the console",
+            "- docs/simulator.md: `sim/run.sh src` plays it in a window, with sound and controls",
             "- docs/release-checklist.md: before you tag a release", ""]
     return "\n".join(out)
 
@@ -1116,15 +1117,15 @@ def ere(s):
     return re.sub(r"([.^$*+?()\[\]{}|\\])", r"\\\1", s)
 
 
-def test_block(p):
+def plugin_tests(p):
+    """The plugin's tests, for test/run.sh and sim/test.sh alike: (name, ms,
+    script, what the log must have) each. The card's test is written apart:
+    an image in test/run.sh, a folder in sim/test.sh."""
     t = p.test
-    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----", f"if wanted {t}; then"]
     want = [f'note "{ere(p.note_name)}: 3 presses"', "back to the menu"]
     if p.has("midi-out"):
         want += ["the port is a MIDI device", "midi 90 43 64", "midi 80 43 00"]          # keypad 5: G
-    out.append('    PC_END=3000 PC_SCRIPT="500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy=" \\')
-    out.append(f'        run {t} "$kit/src" ' + " ".join(shq(w) for w in want))
-    out.append("fi")
+    tests = [(t, 3000, "500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy=", want)]
     if p.has(*HOST_FEATURES):
         ev = []
         if p.has("midi-out"):
@@ -1143,9 +1144,18 @@ def test_block(p):
             ev.append("3500:key=3 3600:key=")           # MIDI out to the MIDI keyboard on the hub
             want.append(r"midi 90 40 64 \(to the MIDI device\)")
         ev.append("3800:snap=usb")
-        out += [f"if wanted {t}-usb; then",
-                f'    PC_END=4000 PC_SCRIPT="{" ".join(ev)}" \\',
-                f'        run {t}-usb "$kit/src" ' + " ".join(shq(w) for w in want), "fi"]
+        tests.append((t + "-usb", 4000, " ".join(ev), want))
+    return tests
+
+
+def test_block(p):
+    """test/run.sh's part for the plugin"""
+    t = p.test
+    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----"]
+    for name, ms, script, want in plugin_tests(p):
+        out += [f"if wanted {name}; then",
+                f'    PC_END={ms} PC_SCRIPT="{script}" \\',
+                f'        run {name} "$kit/src" ' + " ".join(shq(w) for w in want), "fi"]
     if p.has("saves"):
         path = f"{p.save_folder}/{p.save_file}"
         folder = f" {shq(p.home)}" if p.home else ""
@@ -1156,6 +1166,31 @@ def test_block(p):
                 f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu'",
                 "    done",
                 f"    card_check fat32 \"MS-DOS FAT32\" 2 {shq(path)} {shq(p.save_magic)}",
+                "fi"]
+    out.append("# ---- the examples ----")
+    return "\n".join(out) + "\n"
+
+
+def sim_test_block(p):
+    """sim/test.sh's part for the plugin: the same tests in the simulator,
+    headless, and the card as a folder"""
+    t = p.test
+    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----"]
+    for name, ms, script, want in plugin_tests(p):
+        out += [f"if wanted {name}; then",
+                f'    run {name} "$kit/src" --ms {ms} --script "{script}"',
+                "    expect " + " ".join(shq(w) for w in want), "fi"]
+    if p.has("saves"):
+        path = f"{p.save_folder}/{p.save_file}"
+        out += [f"if wanted {t}-card; then",
+                f"    run {t}-nocard \"$kit/src\" --ms 1500",
+                "    expect 'back to the menu'",
+                '    tree "$out/card"' + (f'; mkdir -p "$out/card"{shq(p.home)}' if p.home else ""),
+                "    for n in 1 2; do",
+                f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" --ms 2500",
+                "        expect 'back to the menu'",
+                "    done",
+                f"    save_check \"$out/card\"{shq(path)} {shq(p.save_magic)} 2",
                 "fi"]
     out.append("# ---- the examples ----")
     return "\n".join(out) + "\n"
@@ -1211,17 +1246,20 @@ def reshape(root, p, examples):
         for f in os.listdir(shots):
             if f.startswith("screenshot-"):
                 os.remove(os.path.join(shots, f))
-    # its tests, and the workflow's list of them
-    run = os.path.join(root, "test", "run.sh")
+    # its tests, in the models and in the simulator, and the workflow's list of them
     old_tests = []
-    if os.path.exists(run):
+    for rel, block, last in ((("test", "run.sh"), test_block, r"\[ \$status = 0 \]"),
+                             (("sim", "test.sh"), sim_test_block, r"\[ \$compared = 0 \]")):
+        run = os.path.join(root, *rel)
+        if not os.path.exists(run):
+            continue
         s = open(run).read()
         m = re.search(r"# ---- the plugin in src/.*?\n(.*?)# ---- the examples ----\n", s, re.S)
         if m:
-            old_tests = re.findall(r"^if wanted (\S+); then", m.group(1), re.M)
-            s = s[:m.start()] + test_block(p) + s[m.end():]
+            old_tests += re.findall(r"^if wanted (\S+); then", m.group(1), re.M)
+            s = s[:m.start()] + block(p) + s[m.end():]
             if not examples:
-                e = re.search(r"(# ---- the examples ----\n)(.*?)(?=^\[ \$status = 0 \])", s, re.S | re.M)
+                e = re.search(r"(# ---- the examples ----\n)(.*?)(?=^" + last + ")", s, re.S | re.M)
                 if e:
                     s = (s[:e.start()] + e.group(1) +
                          "# (left out with examples/: tools/new-plugin.py --examples keeps them)\n\n" + s[e.end():])
@@ -1394,7 +1432,7 @@ def main():
     print(f"  CMakeLists.txt   {p.id} {p.version}, {p.screen} screen, features: {' '.join(p.words) or 'none'}")
     print("  src/main.c       each feature on the TV; YOUR CODE marks where yours goes")
     print(f"  README.md        controls, what it needs, credits; LICENSE {p.license}")
-    print(f"  test/run.sh      its tests: {' '.join(p.tests())}")
+    print(f"  test/run.sh      its tests: {' '.join(p.tests())} (sim/test.sh too)")
     if p.license not in LICENSES:
         print(f"  LICENSE          paste the {p.license} text into it")
     print("  examples/        " + ("kept" if examples else "left out (--examples keeps it)"))
@@ -1403,6 +1441,7 @@ def main():
         print(f"  cd {where}")
     print("  cmake -B build -G Ninja -DPICO_SDK_PATH=$HOME/pico-sdk && ninja -C build")
     print(f"  test/run.sh {' '.join(p.tests())}")
+    print("  sim/run.sh src                     (in a window: docs/simulator.md)")
 
 
 if __name__ == "__main__":

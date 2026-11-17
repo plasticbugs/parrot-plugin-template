@@ -30,7 +30,7 @@ equal `test/run.sh`'s.
 | `cxxmain.cpp` | for a plugin whose `main()` is C++ |
 | `include/` | stand-ins for a few pico-sdk and TinyUSB headers that `test/host/include` doesn't have |
 | `compat/` | what MSVC lacks (`unistd.h`), and a stored-only zlib for a machine without one |
-| `CMakeLists.txt` | the build, for one plugin (`PLUGIN_DIR`) |
+| `CMakeLists.txt` | the build, for one plugin (`PLUGIN_DIR`), with the USB features its own `CMakeLists.txt` turns on (`test/host/plugin.cmake` reads them) |
 | `run.sh`, `run.bat` | build and run, in one command |
 | `get-sdl.sh` | SDL3 into `build-sim/sdl3`, pinned by version and SHA-256 |
 | `test.sh`, `wavcheck.py` | the simulator's checks, headless |
@@ -76,6 +76,13 @@ For merging with other work on `test/host`:
   kept in `k_reg[8]` (a list's register writes were dropped before, so its
   picture assumed midihello.asm's); `end_us` is 64 bits, for "never".
 - `test/host/build.sh`: builds `tms9918.c` too.
+- `test/host/plugin.cmake` (new): reads a plugin's `CMakeLists.txt` (its
+  ID, name and `cvcart_features()`) for `build.sh` and `sim/CMakeLists.txt`
+  alike, so the models and the simulator always build a plugin with the
+  same `CVUSB_*` switches.
+- `sim/test.sh` has the same "the plugin in src/" and "the examples"
+  markers as `test/run.sh`: `tools/new-plugin.py` writes a new plugin's
+  tests into both, and leaves the examples out of both.
 - `test/host/include/pico/stdlib.h`: `MIN` and `MAX`, and `extern "C"`
   for C++ plugins, as the pico-sdk's own header has.
 - `test/run.sh`: the `vdp` checks; and `PC_SCRIPT` and the other `PC_*`

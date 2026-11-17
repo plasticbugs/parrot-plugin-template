@@ -41,6 +41,8 @@ run() {
     o=$out/$name
     rm -rf "$o"; mkdir -p "$o"
     echo "$name"
+    skip=
+    [ -d "$dir" ] || { echo "  (not here: $dir)"; skip=1; return 0; }
     if "$kit/sim/run.sh" "$dir" --headless --out "$o" "$@" >"$o/run.txt" 2>&1; then :; else
         fail "the simulator stopped with an error:"; sed 's/^/    /' "$o/run.txt" | tail -15
     fi
@@ -57,7 +59,7 @@ run() {
 # NAME, if it has run (the picture only: a card folder isn't macOS's image, so
 # its sector reads, and the log's times, differ)
 same_as() {
-    [ -f "$host/$1/screen.png" ] || return 0
+    [ -z "$skip" ] && [ -f "$host/$1/screen.png" ] || return 0
     compared=$((compared + 1))
     if "$py" -I "$kit/tools/png256.py" same "$o/screen.png" "$host/$1/screen.png" >"$o/same.txt" 2>&1; then
         echo "  test/host: the same picture"
@@ -69,9 +71,19 @@ same_as() {
 
 # expect PATTERN... -- in the last run's log (grep -E)
 expect() {
+    [ -z "$skip" ] || return 0
     for want in "$@"; do
         grep -Eq -- "$want" "$o/log.txt" || fail "nothing in $o/log.txt matches: $want"
     done
+}
+
+# save_check FILE MAGIC RUNS -- a save file a plugin wrote in a card folder:
+# 512 bytes, starting with MAGIC, a run count at byte 8 (as test/run.sh's
+# card_check reads it on a card image)
+save_check() {
+    got=$("$py" -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:len(sys.argv[2])].decode(), struct.unpack_from("<I", d, 8)[0])' "$1" "$2" 2>&1) || true
+    if [ "$got" = "512 $2 $3" ]; then echo "  the folder: $(basename "$1") is 512 bytes, run $3"
+    else fail "$1: $got (wanted run $3)"; fi
 }
 
 # a card, as a folder: test/run.sh's tree
@@ -83,10 +95,12 @@ tree() {
     while [ $i -le 60 ]; do echo "Line $i of a story long enough to scroll, and to wrap around the screen's 30 columns." >> "$1/NOTES/Long story.txt"; i=$((i + 1)); done
 }
 
+# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----
 if wanted hello; then
     run hello "$kit/src" --ms 3000 --script "500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy="
     expect 'note "Hello: 3 presses"'
 fi
+# ---- the examples ----
 if wanted screen; then
     run screen "$kit/examples/screen" --ms 4000 --script "1000:joy=fire 1200:joy= 2000:snap=moving"
     expect 'back to the menu'
@@ -125,9 +139,7 @@ if wanted sd-card; then
         run "sd-card-folder-$n" "$kit/examples/sd-card" --card "$out/card" --ms 2500
         expect "note \"SD card example: run $n\""
     done
-    got=$("$py" -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:7].decode(), struct.unpack_from("<I", d, 8)[0])' "$out/card/SDCARD.SAV" 2>&1) || true
-    if [ "$got" = "512 PCSAVE1 3" ]; then echo "  the folder: SDCARD.SAV is 512 bytes, run 3"
-    else fail "SDCARD.SAV in the folder: $got (wanted run 3)"; fi
+    save_check "$out/card/SDCARD.SAV" PCSAVE1 3
     rm -f "$out/card/SDCARD.SAV"
     diff -r "$out/card" "$out/card-before" >/dev/null || fail "the card folder's other files changed"
 fi

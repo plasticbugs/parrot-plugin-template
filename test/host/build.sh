@@ -4,7 +4,8 @@
 # compiled as it is, its main() renamed, except files that talk to TinyUSB
 # (#include "tusb.h"): host.c answers for those. The USB features its
 # cvcart_features() turns on (in PLUGIN_DIR/CMakeLists.txt, or the one
-# above it for src/) are the CVUSB_* switches of everything built here.
+# above it for src/) are the CVUSB_* switches of everything built here:
+# test/host/plugin.cmake reads them (so needs CMake), for the simulator too.
 set -e
 kit=$(cd "$(dirname "$0")/../.." && pwd)
 dir=$1
@@ -13,15 +14,10 @@ sdk=$kit/sdk/firmware/revc
 obj=$out.o.d
 rm -rf "$obj"
 mkdir -p "$obj"
-cm=$dir/CMakeLists.txt
-[ -f "$cm" ] || cm=$dir/../CMakeLists.txt
-features=""
-if [ -f "$cm" ]; then
-    # the words inside cvcart_features( ... ), comments left out
-    for f in $(sed 's/#.*//' "$cm" | tr '\n' ' ' | sed -n 's/.*cvcart_features([^ )]*\([^)]*\)).*/\1/p'); do
-        case $f in PADS|KEYBOARD|MOUSE|MIDI_IN|MIDI_OUT) features="$features -DCVUSB_$f=1" ;; esac
-    done
-fi
+# the USB features, as -DCVUSB_PADS=1 ...: read by plugin.cmake, as the
+# simulator reads them
+features=$(cmake -DPLUGIN_DIR="$dir" -P "$kit/test/host/plugin.cmake")
+[ -z "$features" ] || features=" $features"
 flags="-std=c11 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Wno-missing-field-initializers
   -I$kit/test/host/include -I$dir -I$kit/lib -I$sdk/sdk -I$sdk/midihello$features"
 n=0

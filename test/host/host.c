@@ -36,10 +36,10 @@
 //   snap=NAME          PC_OUT/NAME.png now
 //
 // The plugin's USB features (cvusb.h) are the ones its CMakeLists.txt turns
-// on: build.sh reads cvcart_features() and builds this file with the same
-// CVUSB_* switches. The port is chosen as cvusb.c chooses it: with MIDI_OUT,
-// a device first, taken by a computer 0.3 s in, and a host at 1.5 s if none
-// took it.
+// on: build.sh reads cvcart_features() (with plugin.cmake, as the simulator
+// does) and builds this file with the same CVUSB_* switches. The port is
+// chosen as cvusb.c chooses it: with MIDI_OUT, a device first, taken by a
+// computer 0.3 s in, and a host at 1.5 s if none took it.
 //
 // It exits 1 if the plugin broke a rule the models can see: a bad list, a
 // list sent before the last was taken, three colours in an 8-pixel run, a
