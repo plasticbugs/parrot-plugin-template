@@ -23,4 +23,4 @@ done
 # shellcheck disable=SC2086
 cc $flags -Dcvs_update=sdk_cvs_update -c "$sdk/sdk/cvscreen.c" -o "$obj/cvscreen.o"
 # shellcheck disable=SC2086
-cc $flags "$kit/test/host/host.c" "$sdk/midihello/vdp.c" "$sdk/sdplayer/fsro.c" "$obj"/*.o -lz -o "$out"
+cc $flags "$kit/test/host/host.c" "$kit/test/host/tms9918.c" "$sdk/midihello/vdp.c" "$sdk/sdplayer/fsro.c" "$obj"/*.o -lz -o "$out"
