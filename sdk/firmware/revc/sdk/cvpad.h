@@ -31,6 +31,12 @@
 // The build: cvpad_use(target) in CMakeLists.txt (cvplugin.cmake). Its
 // TinyUSB configuration is sdk/cvpad_tusb/tusb_config.h, or the plugin's
 // own with cvpad_use(target OWN_TUSB_CONFIG).
+//
+// A new plugin uses cvusb.h instead (cvcart_features(target PADS ...)),
+// which has the pads and keyboards, mice and MIDI too. There this file is
+// built with CVUSB: cvusb owns the port and the timer, so cvpad_init(),
+// cvpad_task(), cvpad_stop(), cvpad_drop(), cvpad_set_tick() and
+// cvpad_task_max_us() aren't built, and cvusb_pad() is cvpad_get().
 #pragma once
 #include <stdbool.h>
 #include <stdint.h>

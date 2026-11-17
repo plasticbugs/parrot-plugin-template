@@ -14,9 +14,11 @@ is the example to copy.
 | `cvframes.c/.h` | The console's side for a plugin that makes whole pictures on the cart (the NES and Game Boy plugins): the Game Boy kernel (`coleco/gbcv/kernel/gbkernel.asm`), which runs one command list a TV frame. Core 1 serves it as a MegaCart and hands the console the newest list at each frame's start (`cvf_publish`), the controller as the kernel read it (`cvf_input`), TV frames started (`cvf_frames`); the power watch and RESET as `cvkernel.c`. The menu's Game Boy mode, as a library. |
 | `cvpsram.c/.h` | The cart's 8 MB PSRAM, set up as the menu's Game Boy mode does: QPI at clk_sys / 2, mapped through the XIP cache (`CVPSRAM_CACHED`), with an uncached alias for filling it. |
 | `cvpad.c/.h` | USB game pads for a plugin: the USB port becomes a host (TinyUSB, through a powered hub), and up to two pads read as `gamepad_t` (`gamepad.h`: buttons named by where they are, sticks -2048..2047): the Switch Pro Controller and pads that act as one (`swpro.c`, which starts it), and plain HID pads (`hidpad.c`, from their report descriptor). `cvpad_dirs()`: the d-pad or the left stick as directions. Its TinyUSB configuration is `cvpad_tusb/tusb_config.h`. With `cvpad_tinyusb.cmake` included before `pico_sdk_import.cmake` (the NES plugin does) the USB host is `tinyusb/` (TinyUSB 0.21 and its fixes since: `tinyusb/VENDORED.md`) and the pads' task runs every millisecond from a timer's interrupt, never waiting; `cvpad_get()` latches a button tapped between two calls. Without it the host is the pico-sdk's 0.18, run from the plugin's loop by `cvpad_task()`: it sleeps there for 450 ms and more whenever a device is plugged in and can panic on a late buffer (NES 0.4.2 on the console). `cvpad_info()`, `cvpad_set_log()`: what `../padtest/plugin` (PADTEST.CVP) puts on the TV. `cvpad_task_max_us()`: the task's longest run so far. The drivers came from `../padtest`, which tests them (`padtest/test/run.sh`). |
+| `cvusb.c/.h` | The USB port, each feature a switch: `cvcart_features(target PADS KEYBOARD MOUSE MIDI_IN MIDI_OUT)` links only what is switched on, configures TinyUSB with only those classes (`cvusb_tusb/tusb_config.h`) and sets the `.CVP`'s USES. Pads (`cvpad.c`, built with `CVUSB`), keyboards and mice in their boot protocol (`cvusb_keys.c`, from the SCUMM plugin's `usbinput.c`), a USB MIDI device as host (`cvusb_midih.c`, PSG Synth's `midi_host.c` on TinyUSB 0.21), the cart as a MIDI device on a computer (`cvusb_midid.c`, the SCUMM plugin's `usbmidi_dev.c`), and the MIDI packets both ways (`cvusb_midi.c`, from PSG Synth's `usbmidi.c`). Host features and MIDI_OUT together: the port tries the computer first and becomes a host if none takes it, as the SCUMM plugin does. `cvusb_start()`, `cvusb_task()`, getters. Below, "USB features". |
+| `cvinput.h` | Player 1 as one: the console's controller (either kernel's reports) and, with PADS, USB pad 1, mapped as the menu maps a pad. Header-only. |
 | `cvheap.c/.h` | A heap for a plugin that needs `new` and `malloc` (an emulator core): `_sbrk` stops below the launch block, so `malloc` returns NULL there instead of overwriting it. `cvcart_plugin(... HEAP)` links it. `cvheap_reserve()`, before the first `malloc`: the whole heap from `_sbrk` at once, which newlib's `malloc` otherwise takes 4K blocks at a time and can't then use to the end. `cvheap_largest()`: the largest block still to be had (the NES plugin's note). |
 | `mkpins.py` | `pins.h` (the address and data pin order) from `hw3/pins.py`, for `cvframes.c`; the same table as the menu's. |
-| `cvplugin.cmake` | `cvkernel_use()` or `cvframes_use()`, `cvsd_use()`, `cvpsram_use()`, `cvpad_use()`, and `cvcart_plugin()`, which makes the no_flash binary, packages it and writes the `.CVP`. |
+| `cvplugin.cmake` | `cvkernel_use()` or `cvframes_use()`, `cvcart_features()` (or by hand `cvsd_use()`, `cvpsram_use()`, `cvpad_use()`), and `cvcart_plugin()`, which makes the no_flash binary, packages it and writes the `.CVP`. |
 | `cvreadme.py` | A plugin's `README.md` as the cart shows it: plain ASCII, 30 columns (`docs/plugins.md`, "The README"). `cvcart_plugin(... README README.md)` runs it through `mkcvp.py --readme`; by itself it prints the text. `test/test_cvreadme.py` checks each rule. |
 | `reserve.ld` | Added to a plugin's link: its `.bss` must stop below the launch block (crt0 zeroes `.bss` before `main`). |
 
@@ -83,6 +85,80 @@ Rules a plugin keeps:
 - **Leave a note** (`cvk_note("Saved")`) for the menu's bottom line when the
   plugin goes back: 32 characters at most.
 
+## USB features: `cvusb`
+
+`../featuretest` (FEATTEST.CVP) is the example, with every feature on and
+every input on the TV. In CMake, before `cvcart_plugin()`:
+
+```cmake
+include(${CMAKE_CURRENT_LIST_DIR}/../sdk/cvpad_tinyusb.cmake)   # before pico_sdk_import.cmake
+...
+cvcart_features(myplugin PADS KEYBOARD MOUSE MIDI_IN MIDI_OUT PSRAM CARD)
+cvcart_plugin(myplugin ID you.myplugin NAME "My Plugin" VERSION 0.1.0)   # USES follow the features
+```
+
+| Feature | What plugs in | The port | USES | Code |
+|---|---|---|---|---|
+| `PADS` | up to two game pads: the Switch Pro Controller (and pads in Switch mode), plain HID pads | host, through a powered hub | usb-host | `cvpad.c`, `swpro.c`, `hidpad.c` |
+| `KEYBOARD` | USB keyboards | host | usb-host | `cvusb_keys.c` |
+| `MOUSE` | USB mice | host | usb-host | `cvusb_keys.c` |
+| `MIDI_IN` | a USB MIDI keyboard, or any class-compliant MIDI device | host | usb-host | `cvusb_midih.c`, `cvusb_midi.c` |
+| `MIDI_OUT` | a computer: the cart is a MIDI device on it, named after the plugin | device | usb-device | `cvusb_midid.c`, `cvusb_midi.c` |
+| `PSRAM` | | | psram | `cvpsram_use()` |
+| `CARD` | | | | `cvsd_use()` |
+
+```c
+#include "cvusb.h"
+
+cvusb_start();                          // once, after cvk_start() / cvf_start()
+for (;;) {
+    cvusb_task();                       // every pass: it never waits
+    gamepad_t p;  if (cvusb_pad(0, &p)) ...         // PADS: buttons, sticks -2048..2047
+    cvkey_t k;    while (cvusb_key(&k)) ...         // KEYBOARD: usage, mods, ascii, down
+    cvmouse_t m;  if (cvusb_mouse(&m)) ...          // MOUSE: dx, dy, wheel, buttons
+    uint8_t msg[3]; int n;
+    while ((n = cvusb_midi_read(msg)) > 0) ...      // MIDI in, whichever side it came from
+    cvusb_midi_send(note_on, 3);                    // MIDI out, likewise
+    cvusb_mode();  cvusb_status(&s);                // host, device; what is plugged in
+}
+```
+
+- **Host or device.** Host features make the port a host; MIDI_OUT a
+  device. With both, it starts a device: a computer that takes the cart
+  within 1.5 s keeps it one, and anything else (a hub, nothing) makes it a
+  host. A computer that answers and doesn't take it is asking its user
+  ("Allow accessory to connect?" on a Mac): up to a minute is given for
+  that (`CVUSB_ASKING`), and `cvusb_host_now()` gives up on it. Chosen once,
+  at the start.
+- **As a host** TinyUSB runs every millisecond from a timer's interrupt, as
+  `cvpad` did: never call `tuh_*`. **As a device** it runs in `cvusb_task()`.
+- **A getter for a feature that's off** is a build error that names the
+  switch (`cvusb.h`, GCC's `error` attribute).
+- **What it costs**, over a plugin with none (GCC 9.2.1, `-O3`; a plugin
+  runs from RAM, so its code is RAM too). Most of it is TinyUSB's host,
+  shared by the host features:
+
+  | Features | Code | Data |
+  |---|---|---|
+  | `PADS` | 41.7K | 4.8K |
+  | `KEYBOARD` | 32.5K | 3.8K |
+  | `MOUSE` | 30.2K | 3.7K |
+  | `MIDI_IN` | 28.9K | 3.4K |
+  | `MIDI_OUT` | 14.1K | 7.1K |
+  | `PADS MIDI_OUT` | 53.8K | 12.0K |
+  | all five | 60.8K | 13.2K |
+
+  `PSRAM` and `CARD` cost only what the plugin calls.
+- **`cvinput.h`**: player 1 as one, for either kernel; a USB pad 1 counts as
+  the console's controller (d-pad or stick, B the left fire, A the right, X
+  and Y the keypad's `*` and `#`).
+- `cvpad_use()` and the plugins built with it (NES, SMS, Game Boy, Star
+  Wars, the pad test, the menu) are as they were: `cvpad.c` built without
+  `CVUSB` is the same code.
+
+`test/run.sh` runs the readers on the Mac: keyboard and mouse reports,
+pad reports, MIDI both ways and a MIDI device's descriptors, `cvinput.h`.
+
 ## Pictures made on the cart: `cvframes`
 
 `../nes/plugin` is the example. The console runs the Game Boy kernel, and
@@ -123,6 +199,18 @@ plugin, with saves on the card and USB pads, and a Mac test that runs its
 
 ## Not here yet
 
-- A display kernel for ScummVM (its own Z80 side), USB host helpers (PSG
-  Synth and the pad test have their own).
+- A display kernel for ScummVM (its own Z80 side).
+- PSG Synth, the SCUMM plugin and the pad test keep their own USB code;
+  only new plugins use `cvusb`.
+- Keyboards and mice in their report protocol: only the boot protocol is
+  read, so a keyboard's media keys and a mouse's extra buttons aren't
+  there, and the wheel only if the mouse sends it in its boot reports.
+  A keyboard layout other than US: the usage is right, `ascii` is the US
+  key's.
+- MIDI over more than one cable (port) of a device: cable numbers are
+  ignored, and one MIDI device at a time is read.
+- `hidpad.c` takes a pad's Rx and Ry for its right stick when it has them.
+  A DualShock 4 reports its right stick as Z and Rz and its triggers as Rx
+  and Ry, so its right stick would read as the triggers.
+- The port choosing again after the start (a computer plugged in later).
 - `cv_pick_file` (a plugin asking the menu for a second file).

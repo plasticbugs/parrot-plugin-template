@@ -27,9 +27,19 @@
 //                      north l r zl zr minus plus home capture ls rs); pad=off unplugs it
 //   lstick=X,Y rstick=X,Y   its sticks, -2048..2047
 //   keydown=04 keyup=04     a USB keyboard's key, by HID usage (hex)
-//   mouse=DX,DY,BUTTONS     a USB mouse
-//   computer=0|1       the USB port as a device: a computer is listening (1 from the start)
+//   mods=02            the keyboard's modifiers held (hex, HID's bits: 02 left shift); mods=0 lets go
+//   mouse=DX,DY,BUTTONS[,WHEEL]   a USB mouse
+//   midiin=90,3C,64    MIDI that comes in (hex bytes): from a MIDI device on a hub when the
+//                      port is a host, from the computer when it is a device
+//   computer=0|1|ask   the USB port as a device: a computer is listening (1 from the start);
+//                      ask: one is there and asking its user, and never takes the cart
 //   snap=NAME          PC_OUT/NAME.png now
+//
+// The plugin's USB features (cvusb.h) are the ones its CMakeLists.txt turns
+// on: build.sh reads cvcart_features() and builds this file with the same
+// CVUSB_* switches. The port is chosen as cvusb.c chooses it: with MIDI_OUT,
+// a device first, taken by a computer 0.3 s in, and a host at 1.5 s if none
+// took it.
 //
 // It exits 1 if the plugin broke a rule the models can see: a bad list, a
 // list sent before the last was taken, three colours in an 8-pixel run, a
@@ -54,6 +64,8 @@
 #include "cvpsram.h"
 #include "cvscreen.h"
 #include "cvsd.h"
+#include "cvusb.h"
+#include "cvusb_midi.h"
 #include "mailbox.h"
 
 int plugin_main(void);
@@ -100,7 +112,11 @@ static uint8_t joy_held;        // wired.h's WIRED_* order: up right down left f
 static int key_held = -1;
 static bool pad_in;
 static gamepad_t pad_state;
-static bool computer = true;
+static bool computer = true, computer_asks;
+static uint8_t kb_down[6], kb_mods;
+static void usb_key_report(void);
+static void usb_mouse_report(int dx, int dy, uint8_t buttons, int wheel);
+static void usb_midi_in(const char *hex);
 static struct { uint8_t usage; bool down; } kq[64];
 static int kq_n, kq_at, kb_count;
 static int mouse_dx, mouse_dy, mouse_seen;
@@ -139,10 +155,22 @@ static void event(const char *what, const char *v) {
     else if (!strcmp(what, "rstick") && sscanf(v, "%d,%d", &a, &b) == 2) { pad_state.rx = (int16_t)a; pad_state.ry = (int16_t)b; }
     else if (!strcmp(what, "keydown") || !strcmp(what, "keyup")) {
         kb_count = 1;
-        if (kq_n < 64) { kq[kq_n].usage = (uint8_t)strtol(v, NULL, 16); kq[kq_n++].down = what[3] == 'd'; }
+        const uint8_t u = (uint8_t)strtol(v, NULL, 16);
+        if (kq_n < 64) { kq[kq_n].usage = u; kq[kq_n++].down = what[3] == 'd'; }
+        for (int i = 0; i < 6; i++) if (kb_down[i] == u) kb_down[i] = 0;          // the keyboard's report
+        if (what[3] == 'd') for (int i = 0; i < 6; i++) if (!kb_down[i]) { kb_down[i] = u; break; }
+        usb_key_report();
+    } else if (!strcmp(what, "mods")) {
+        kb_count = 1;
+        kb_mods = (uint8_t)strtol(v, NULL, 16);
+        usb_key_report();
     } else if (!strcmp(what, "mouse") && sscanf(v, "%d,%d,%d", &a, &b, &c) == 3) {
+        int w = 0;
+        if (sscanf(v, "%*d,%*d,%*d,%d", &w) != 1) w = 0;
         mouse_seen = 1; mouse_dx += a; mouse_dy += b; mouse_btn = (uint8_t)c;
-    } else if (!strcmp(what, "computer")) computer = atoi(v) != 0;
+        usb_mouse_report(a, b, (uint8_t)c, w);
+    } else if (!strcmp(what, "midiin")) usb_midi_in(v);
+    else if (!strcmp(what, "computer")) { computer_asks = !strcmp(v, "ask"); computer = !computer_asks && atoi(v) != 0; }
     else if (!strcmp(what, "snap")) snapshot(v);
     else { fprintf(stderr, "PC_SCRIPT: what is \"%s=%s\"?\n", what, v); exit(2); }
 }
@@ -512,6 +540,152 @@ bool usbmidi_write(const uint8_t *m, uint32_t n) {
     midi_bytes += n;
     return true;
 }
+
+// ---- cvusb.h: the SDK's USB features ------------------------------------------------
+static cvusb_mode_t usb_mode;
+static uint64_t usb_t0;
+static bool usb_midi_dev;               // a MIDI device on the hub (it has sent something)
+static cvkeys_t usb_keys;
+static cvkey_t usb_kq[64];
+static int usb_kq_n, usb_kq_at;
+static cvmouse_t usb_mouse;
+static struct { int n; uint8_t m[3]; } usb_mq[64];
+static int usb_mq_n, usb_mq_at;
+
+static void usb_mode_now(cvusb_mode_t m) {
+    if (m == usb_mode) return;
+    usb_mode = m;
+    if (m == CVUSB_HOST) logline("usb: the port is a host");
+    if (m == CVUSB_DEVICE) logline("usb: the port is a MIDI device, on a computer");
+    if (m == CVUSB_ASKING) logline("usb: a computer is asking its user");
+}
+
+// the keyboard's reports, read by the SDK's own cvusb_keys.c
+static void usb_key_event(const cvkey_t *k, void *ctx) {
+    (void)ctx;
+    if (usb_mode == CVUSB_HOST && CVUSB_KEYBOARD && usb_kq_n < 64) usb_kq[usb_kq_n++] = *k;
+}
+
+static void usb_key_report(void) {
+    uint8_t r[8] = {kb_mods, 0};
+    memcpy(r + 2, kb_down, 6);
+    cvkeys_report(&usb_keys, r, 8, usb_key_event, NULL);
+}
+
+static void usb_mouse_report(int dx, int dy, uint8_t buttons, int wheel) {
+    if (usb_mode != CVUSB_HOST || !CVUSB_MOUSE) return;
+    do {                                // a report moves 127 at most
+        const int x = dx > 127 ? 127 : dx < -127 ? -127 : dx, y = dy > 127 ? 127 : dy < -127 ? -127 : dy;
+        const uint8_t r[4] = {buttons, (uint8_t)x, (uint8_t)y, (uint8_t)wheel};
+        cvmouse_report(&usb_mouse, r, 4);
+        dx -= x;
+        dy -= y;
+        wheel = 0;
+    } while (dx || dy);
+}
+
+// MIDI bytes as USB-MIDI packets and back, by the SDK's own cvusb_midi.c
+static void usb_midi_in(const char *hex) {
+    uint8_t bytes[64], pk[64][4], st = 0, m[3];
+    uint32_t n = 0;
+    for (char *p = (char *)hex; *p && n < sizeof bytes;) {
+        bytes[n++] = (uint8_t)strtol(p, &p, 16);
+        if (*p == ',') p++;
+    }
+    if (usb_mode == CVUSB_HOST) usb_midi_dev = true;
+    const bool on = (usb_mode == CVUSB_HOST && CVUSB_MIDI_IN) || (usb_mode == CVUSB_DEVICE && CVUSB_MIDI_OUT);
+    const int k = cvmidi_pack(bytes, n, pk, 64, &st);
+    for (int i = 0; on && i < k; i++) {
+        const int len = cvmidi_msg(pk[i], m);
+        if (len && usb_mq_n < 64) {
+            usb_mq[usb_mq_n].n = len;
+            memcpy(usb_mq[usb_mq_n++].m, m, 3);
+        }
+    }
+}
+
+void cvusb_start(void) {
+    if (usb_mode != CVUSB_NONE) return;
+    usb_t0 = now_us;
+    if (CVUSB_MIDI_OUT) {
+        usb_mode = CVUSB_WAITING;
+        logline("usb: looking for a computer");
+    } else {
+        usb_mode_now(CVUSB_HOST);
+    }
+}
+
+void cvusb_host_now(void) {
+    if (CVUSB_HOST_FEATURES && (usb_mode == CVUSB_WAITING || usb_mode == CVUSB_ASKING)) usb_mode_now(CVUSB_HOST);
+}
+
+void cvusb_task(void) {
+    console_step();
+    if (usb_mode != CVUSB_WAITING && usb_mode != CVUSB_ASKING) return;
+    const uint64_t dt = now_us - usb_t0;
+    if (computer && dt >= 300000) usb_mode_now(CVUSB_DEVICE);
+    else if (computer_asks && dt >= 700000 && dt < 60000000) usb_mode_now(CVUSB_ASKING);
+    else if (CVUSB_HOST_FEATURES && dt >= (computer_asks ? 60000000u : 1500000u)) usb_mode_now(CVUSB_HOST);
+}
+
+cvusb_mode_t cvusb_mode(void) { return usb_mode; }
+
+const char *cvusb_mode_name(cvusb_mode_t m) {            // as sdk/cvusb.c
+    switch (m) {
+    case CVUSB_WAITING: return "LOOKING FOR A COMPUTER";
+    case CVUSB_ASKING:  return "ALLOW IT ON THE COMPUTER";
+    case CVUSB_DEVICE:  return "ON A COMPUTER";
+    case CVUSB_HOST:    return "HOST";
+    default:            return "OFF";
+    }
+}
+
+void cvusb_status(cvusb_status_t *s) {
+    memset(s, 0, sizeof *s);
+    if (usb_mode == CVUSB_HOST) {
+        s->pads = CVUSB_PADS && pad_in;
+        s->keyboards = (uint8_t)(CVUSB_KEYBOARD && kb_count);
+        s->mice = (uint8_t)(CVUSB_MOUSE && mouse_seen);
+        s->midi = CVUSB_MIDI_IN && usb_midi_dev;
+    }
+    if (usb_mode == CVUSB_DEVICE) s->midi = true;
+}
+
+uint32_t cvusb_task_max_us(void) { return 50; }
+bool cvusb_pad(int n, gamepad_t *p) { return usb_mode == CVUSB_HOST && CVUSB_PADS && cvpad_get(n, p); }
+const char *cvusb_pad_kind(int n) { return usb_mode == CVUSB_HOST && CVUSB_PADS ? cvpad_kind(n) : NULL; }
+uint32_t cvusb_pad_dirs(const gamepad_t *p) { return cvpad_dirs(p); }
+
+bool cvusb_key(cvkey_t *k) {
+    if (usb_kq_at >= usb_kq_n) return false;
+    *k = usb_kq[usb_kq_at++];
+    return true;
+}
+
+bool cvusb_mouse(cvmouse_t *m) {
+    *m = usb_mouse;
+    usb_mouse.dx = usb_mouse.dy = usb_mouse.wheel = 0;
+    return usb_mode == CVUSB_HOST && CVUSB_MOUSE && mouse_seen;
+}
+
+int cvusb_midi_read(uint8_t msg[3]) {
+    if (usb_mq_at >= usb_mq_n) return 0;
+    memcpy(msg, usb_mq[usb_mq_at].m, 3);
+    return usb_mq[usb_mq_at++].n;
+}
+
+bool cvusb_midi_send(const uint8_t *m, uint32_t n) {
+    const bool to_computer = usb_mode == CVUSB_DEVICE && CVUSB_MIDI_OUT;
+    const bool to_device = usb_mode == CVUSB_HOST && CVUSB_MIDI_IN && usb_midi_dev;
+    if (!to_computer && !to_device) return false;
+    char hex[3 * 16 + 1] = "";
+    for (uint32_t k = 0; k < n && k < 16; k++) snprintf(hex + 3 * k, 4, " %02X", m[k]);
+    logline("midi%s%s", hex, to_device ? " (to the MIDI device)" : "");
+    midi_bytes += n;
+    return true;
+}
+
+uint32_t cvusb_midi_dropped(void) { return 0; }
 
 // ---- the PSRAM -------------------------------------------------------------------
 uint8_t host_psram[CVPSRAM_SIZE];

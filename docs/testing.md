@@ -26,7 +26,9 @@ MAME's picture must equal the model's pixel for pixel; for the frame
 kernel, no list may make a frame start late.
 
 To test your own plugin this way, add a block for it to `test/run.sh`
-(copy the `hello` one), or run it by hand:
+(copy the `hello` one; a plugin made by `tools/new-plugin.py` has its
+own), or run it by hand. The script's events are listed at the top of
+`test/host/host.c`, and the USB ones in docs/features.md:
 
 ```sh
 test/host/build.sh src /tmp/myplugin

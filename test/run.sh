@@ -28,12 +28,18 @@ command -v mame >/dev/null 2>&1 && command -v sjasmplus >/dev/null 2>&1 || have_
 [ $have_mame = 1 ] || echo "(no MAME step: NO_MAME is set, or mame or sjasmplus isn't installed)"
 
 # run NAME DIR -- with PC_* in the environment; then the log must match each
-# remaining argument (a grep -E pattern)
+# remaining argument (a grep -E pattern). (sh keeps a function's PC_*=...
+# after it returns: they are cleared, so one run's script isn't the next's.)
 run() {
+    run_one "$@"
+    unset PC_SCRIPT PC_END PC_CARD PC_OPEN PC_ID PC_NO_PSRAM PC_NO_LAUNCH
+}
+run_one() {
     name=$1; dir=$2; shift 2
     o=$out/$name
     rm -rf "$o"; mkdir -p "$o"
     printf '%s\n' "$name"
+    [ -d "$dir" ] || { echo "  (not here: $dir)"; return 0; }
     if ! "$kit/test/host/build.sh" "$dir" "$o/run" 2>"$o/build.log"; then
         echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1; return 0
     fi
@@ -59,21 +65,26 @@ run() {
 wanted() { [ -z "$ONLY" ] && return 0; case " $ONLY " in *" $1 "*) return 0 ;; esac; return 1; }
 ONLY="$*"
 
-# a card image: FILESYSTEM:LAYOUT -> $out/card-NAME.cdr, from a small tree
+# a card image: FILESYSTEM:LAYOUT:NAME -> $out/card-NAME.cdr, from a small
+# tree, with more folders if asked (card SPEC /FOLDER ...)
 card() {
     fsname=${1%%:*}; rest=${1#*:}; layout=${rest%%:*}; cname=${rest#*:}
+    shift
     tree=$out/tree
     rm -rf "$tree" "$out/card-$cname.cdr"
     mkdir -p "$tree/NOTES" "$tree/PLUGINS"
+    for d in "$@"; do mkdir -p "$tree$d"; done
     printf 'Hello from the card.\nThis is the first file.\n' > "$tree/A first file.txt"
     i=1; : > "$tree/NOTES/Long story.txt"
     while [ $i -le 60 ]; do echo "Line $i of a story long enough to scroll, and to wrap around the screen's 30 columns." >> "$tree/NOTES/Long story.txt"; i=$((i + 1)); done
     hdiutil create -quiet -srcfolder "$tree" -fs "$fsname" -layout "$layout" -size 64m -format UDTO -o "$out/card-$cname"
 }
 
-# macOS's opinion of an image the plugin wrote to: fsck, then the save file's bytes
+# macOS's opinion of an image the plugin wrote to: fsck, then the save
+# file's bytes: 512 of them, starting with MAGIC, a run count at byte 8
+# (card_check NAME FS RUNS [/PATH/OF.SAV MAGIC]: /SDCARD.SAV and PCSAVE1)
 card_check() {
-    cname=$1; fs=$2; runs=$3
+    cname=$1; fs=$2; runs=$3; save=${4:-/SDCARD.SAV}; magic=${5:-PCSAVE1}
     img=$out/card-$cname.cdr
     dev=$(hdiutil attach -nomount -readonly "$img" | awk '$1 ~ /s[0-9]+$/ {d = $1} END {print d}')
     whole=${dev%s*}
@@ -83,16 +94,18 @@ card_check() {
     mnt=$out/mnt-$cname
     mkdir -p "$mnt"
     hdiutil attach -quiet -readonly -nobrowse -mountpoint "$mnt" "$img"
-    got=$(python3 -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:7].decode(), struct.unpack_from("<I", d, 8)[0])' "$mnt/SDCARD.SAV" 2>&1) || true
+    got=$(python3 -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:len(sys.argv[2])].decode(), struct.unpack_from("<I", d, 8)[0])' "$mnt$save" "$magic" 2>&1) || true
     hdiutil detach -quiet "$mnt"
-    if [ "$got" = "512 PCSAVE1 $runs" ]; then echo "  macOS: fsck clean, /SDCARD.SAV is 512 bytes, run $runs"
-    else echo "  FAIL: /SDCARD.SAV on the Mac: $got (wanted run $runs)"; status=1; fi
+    if [ "$got" = "512 $magic $runs" ]; then echo "  macOS: fsck clean, $save is 512 bytes, run $runs"
+    else echo "  FAIL: $save on the Mac: $got (wanted run $runs)"; status=1; fi
 }
 
+# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----
 if wanted hello; then
     PC_END=3000 PC_SCRIPT="500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy=" \
         run hello "$kit/src" 'note "Hello: 3 presses"'
 fi
+# ---- the examples ----
 if wanted screen; then
     PC_END=4000 PC_SCRIPT="1000:joy=fire 1200:joy= 2000:snap=moving" run screen "$kit/examples/screen" 'back to the menu'
 fi

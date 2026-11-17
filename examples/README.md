@@ -9,8 +9,8 @@ read from the top, an icon, a README and five lines of CMake.
 | `screen` | text at two sizes, the 15 colors, a map of 8x8 tiles, something moving | `cvscreen`, `vdp.h` |
 | `sound` | the sound chip: notes on a voice, a drum on the noise | `cvk_sound`, `cvk_mb` |
 | `usb-gamepad` | a USB pad: buttons, calibrated sticks, directions | `cvpad`, `gamepad.h` |
-| `usb-keyboard-mouse` | a USB keyboard and mouse | TinyUSB host; the example's own `usbinput.c` |
-| `usb-midi-out` | USB as output: the cart as a MIDI device on a computer | TinyUSB device; the example's own `usbmidi_dev.c` |
+| `usb-keyboard-mouse` | a USB keyboard and mouse, with TinyUSB's own calls | TinyUSB host; the example's own `usbinput.c` |
+| `usb-midi-out` | USB as output, with TinyUSB's own calls: the cart as a MIDI device on a computer | TinyUSB device; the example's own `usbmidi_dev.c` |
 | `sd-card` | list a folder, read a file, make a save file, write it, read it back | `cvsd`, `fsro.h` |
 | `open-file` | declare an extension (`.txt`), get the file from the menu | `cvlaunch.h`, `cvsd_open_launched` |
 | `frames` | a whole picture every TV frame, as command lists with a time budget | `cvframes`, `cvdiag` |
@@ -21,6 +21,12 @@ cmake -S examples -B build-examples -G Ninja -DPICO_SDK_PATH=$HOME/pico-sdk
 ninja -C build-examples            # build-examples/<folder>/EX....CVP
 test/run.sh                        # all of them on the Mac (docs/testing.md)
 ```
+
+The SDK's `cvusb` does what the three USB examples do, and MIDI in, as
+switches in CMake (`docs/features.md`); `tools/new-plugin.py` writes a
+plugin with any of them working. The keyboard and MIDI examples do it
+with TinyUSB's own calls, for a plugin that wants those; the game pad
+example uses `cvpad`, the SDK's pads alone.
 
 To start your plugin from one: copy its files over `src/`, and its
 `CMakeLists.txt` lines into the top `CMakeLists.txt` in place of the ones
@@ -48,8 +54,6 @@ A plugin uses one kernel or the other, never both.
   console is the way back (or switching the console off). The frame
   kernel has `cvf_menu_now()` for a plugin that can't go on; it isn't a
   clean exit, as the console is left running the plugin's kernel.
-- **A USB keyboard, mouse or MIDI.** The SDK reads game pads. The two USB
-  examples carry their own TinyUSB code, short enough to copy.
 - **Sprites, scrolling, a text console.** The screen kernel shows a
   bitmap; the frame kernel shows what you send it.
 - **Asking the menu for a second file.** A plugin gets one file, at its
