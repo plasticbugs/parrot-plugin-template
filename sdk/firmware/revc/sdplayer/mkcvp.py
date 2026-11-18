@@ -20,7 +20,8 @@ from inside the image. mkcvp checks that, as the cart will.
 --xip: IN is an ordinary flash binary (linked at 0x10000000) too big for
 SRAM, which runs in place from its slot: the bootrom maps the slot at
 0x10000000 when the menu starts it (QMI address translation). It must fit
-the slot (1 MB less the slot's 4K record).
+two of the cache's 1 MB slots (2 MB less the second's 4K record); one over
+1 MB less 4K takes two slots side by side.
 
 --readme: the plugin's README, which its details page on the cart shows.
 A Markdown file is turned into the cart's plain text (30 columns, ASCII:
@@ -78,7 +79,7 @@ def uf2_image(path):
     return lo, bytes(img)
 
 
-SLOT_ROOM = 0x100000 - 0x1000            # plugslot.h's PS_REC: a slot less its record
+SLOT_ROOM = 2 * 0x100000 - 0x1000        # plugslot.h's PS_ROOM(PS_SPAN_MAX): two slots less the record
 
 
 def check_movable(path, base, img, xip=False):
@@ -127,7 +128,7 @@ def check_movable(path, base, img, xip=False):
         if base != 0x10000000:
             return f"it starts at {base:#x}: an image that runs from its slot is linked at 0x10000000"
         if len(img) > SLOT_ROOM:
-            return f"it is {len(img)} bytes: a slot holds {SLOT_ROOM}"
+            return f"it is {len(img)} bytes: a plugin can be up to {SLOT_ROOM} (2 MB less 4K)"
         if not 0x10000000 <= w[1] < 0x10000000 + len(img):
             return f"its reset vector {w[1]:#x} isn't in the image"
         return None

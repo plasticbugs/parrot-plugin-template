@@ -12,7 +12,7 @@ and the SDK builds from it.
 | Chip | Raspberry Pi RP2350B, the chip in the Pico 2, with two Arm Cortex-M33 cores at 150 MHz and floating point and DSP instructions |
 | RAM | 520 KB on the chip. A plugin can use everything below `0x2007EC00`, about 507 KB, for its code, data and heap |
 | PSRAM | 8 MB (APS6404L), QPI at 75 MHz, mapped into the address space through the chip's cache |
-| Flash | 16 MB (W25Q128). A plugin can be up to 1 MB. The cart copies each plugin into a 1 MB slot and starts it from there |
+| Flash | 16 MB (W25Q128). A plugin can be up to 2 MB, less 4 KB. The cart copies each plugin into a 1 MB slot, or two side by side for a plugin over 1 MB, and starts it from there |
 | microSD | SPI at 25 MHz, reading about 1.1 MB/s. FAT16, FAT32 and exFAT cards work |
 | USB-C | Full speed (12 Mbit/s). As a host, it takes game pads, keyboards, mice and MIDI keyboards through a powered hub. As a device, it plugs into a computer, for example to send MIDI |
 | LED | One red LED |
@@ -42,7 +42,7 @@ RESET.
   pictures. Reads go through the cache, and there's an uncached alias for
   filling it fast (`cvpsram.h`). The PSRAM is slower than SRAM, so keep
   tight loops and their data in SRAM.
-- Each plugin also has a 1 MB slot in flash. A big plugin can run
+- Each plugin also has a 1 MB slot in flash, or two for a plugin over 1 MB. A big plugin can run
   straight from flash instead of SRAM, as the SCUMM plugin does.
 
 ## The console, as a plugin sees it

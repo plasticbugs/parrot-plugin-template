@@ -1,4 +1,4 @@
-commit 91a0ac6f9b57ebb1d8c61bec3e7232aa1e97e124
-date   2026-11-17T17:20:30-08:00
-about  SDK README: plain, friendly wording
-copied 2026-11-18T01:21:31Z by tools/update-sdk.sh
+commit 60869308b417d43d0fdd1b4caa68b8239498684e
+date   2026-11-17T22:11:58-08:00
+about  mkcvp.py: a plugin image up to 2 MB less 4K (two cache slots)
+copied 2026-11-18T06:11:58Z by tools/update-sdk.sh

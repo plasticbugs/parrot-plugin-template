@@ -47,13 +47,17 @@ carts run older plugins. You don't set the API version yourself. It
 changes when you update `sdk/` (`tools/update-sdk.sh`) to an SDK with a
 new API. If a release needs a newer cart, say so in your release notes.
 
-## Size: the 1 MB slot
+## Size: 1 MB slots
 
-The cart keeps each plugin in a 1 MB slot in its flash, with room for
-the ten or so you used most recently. This sets a few limits:
+The cart copies each plugin into its flash, in ten 1 MB slots, so the
+plugins you used most recently start straight away. A plugin over 1 MB
+takes two slots side by side. This sets a few limits:
 
-- The image can be up to 1,044,480 bytes, which is 1 MB minus the slot's
-  4 KB record. The `.CVP` adds a 512-byte header and the README to that.
+- The image can be up to 2,093,056 bytes, which is 2 MB minus a 4 KB
+  record. Up to 1,044,480 bytes (1 MB minus the record) it takes one
+  slot. The `.CVP` adds a 512-byte header and the README to that.
+- A plugin over 1 MB needs an up-to-date menu on the cart. An older menu
+  says it's too big.
 - Most plugins run from RAM, where the cart's bus timing is safe. The
   code, data and variables together have to fit below `0x2007EC00`,
   about 500 KB. If they don't, the link fails with a clear message.

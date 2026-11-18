@@ -51,7 +51,8 @@
 #
 # XIP: a plugin too big for SRAM (the SCUMM engine) stays an ordinary flash
 # binary, linked at 0x10000000, and runs in place from its slot: the bootrom
-# maps the slot at 0x10000000 when the menu starts it. At most 1 MB less 4K.
+# maps the slot at 0x10000000 when the menu starts it. At most 2 MB less 4K:
+# one over 1 MB less 4K takes two of the cache's 1 MB slots side by side.
 # Its core 1 code must still run from SRAM (__scratch_x, __not_in_flash_func:
 # cvframes.c's does). HEAP isn't for it: it brings its own _sbrk. Its main()
 # calls cvxip_fast() first (cvxip.h): the slot starts in slow serial reads.
