@@ -1,4 +1,4 @@
-# Features
+# Features you can turn on
 
 You turn on the features your plugin uses with one line of CMake. Each
 feature adds its code, sets up the USB port with only what that feature
