@@ -1,13 +1,13 @@
 # Keyboard Example
 
-Type on a USB keyboard and the letters appear on the TV; move a USB mouse and a pointer follows.
+Shows what you type on a USB keyboard, and moves a pointer on the TV with a USB mouse.
 
 Plug them into a powered USB hub, and the hub into the cart.
 
 ## Controls
 
-- Keyboard: letters, digits, Enter, Backspace
-- Mouse: moves the pointer; its buttons change the pointer's color
+- Keyboard: letters, digits, Enter and Backspace
+- Mouse: move the pointer, and click to change its color
 - RESET: back to the menu
 
 ## Credits

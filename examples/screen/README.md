@@ -1,10 +1,10 @@
 # Screen Example
 
-Text and tile graphics on the TV: the font at two sizes, the console's 15 colors, a map made of 8x8 tiles, and a ball that moves.
+Shows text and tile graphics on the TV, with the font at two sizes, the console's 15 colors, a map made of 8x8 tiles, and a moving ball.
 
 ## Controls
 
-- Either fire button: the ball's color
+- Either fire button: change the ball's color
 - RESET: back to the menu
 
 ## Credits

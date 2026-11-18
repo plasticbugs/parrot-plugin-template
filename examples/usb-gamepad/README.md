@@ -1,12 +1,12 @@
 # Game Pad Example
 
-Shows a USB game pad: its buttons, both sticks, and the four directions a game would read.
+Shows what a USB game pad is doing, with its buttons, both sticks, and the four directions a game would read.
 
-Plug the pad into a powered USB hub, and the hub into the cart. A Nintendo Switch Pro Controller, pads that act as one, and plain HID pads work.
+Plug the pad into a powered USB hub, and the hub into the cart. The Nintendo Switch Pro Controller, pads that work like one, and plain HID pads are supported.
 
 ## Controls
 
-- The pad: everything it does is shown
+- The pad: every button and stick shows on the TV
 - RESET: back to the menu
 
 ## Credits

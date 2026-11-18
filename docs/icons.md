@@ -1,27 +1,28 @@
 # Icons
 
-A plugin has two icons, both 8x8 pixels, one bit a pixel: a pixel is on
-or off, and the menu chooses the colour.
+A plugin has two icons. Each is 8x8 pixels with one bit per pixel, so a
+pixel is either on or off. The menu picks the color.
 
-| Icon | CMake | Where the menu shows it | Colour |
+| Icon | CMake | Where the menu shows it | Color |
 |---|---|---|---|
-| the plugin's | `ICON icon.txt` | beside the plugin's name, on the Plugins page and wherever it is listed as an app | **magenta**: "A starts this" |
-| its files' | `FILE_ICON file_icon.txt` | beside every file the plugin opens (`OPENS`), in the card's folders | **light green**: "A opens this in another system" |
+| the plugin icon | `ICON icon.txt` | next to the plugin's name, on the Plugins page and anywhere it's listed as an app | **magenta**, meaning A starts it |
+| the file icon | `FILE_ICON file_icon.txt` | next to each file the plugin opens (`OPENS`), in the card's folders | **light green**, meaning A opens it in another system |
 
-Both are on black. The colour isn't yours to choose: in the menu, colour
-says what pressing A will do (yellow folders open, cyan things play on the
-console itself, green opens with a plugin, magenta starts one), so every
-plugin's icon is magenta and every plugin's file is green.
+Both are drawn on black. You can't choose the color, because the menu
+uses color to show what pressing A will do. Yellow folders open, cyan
+items play on the console itself, green files open with a plugin, and
+magenta items start one. For that reason, every plugin icon is magenta
+and every plugin's file is green.
 
-Without `ICON`, the plugin gets the menu's plug; without `FILE_ICON`, its
-files get the generic file icon. An icon with no pixels on counts as
-none.
+If you leave out `ICON`, the plugin gets the menu's plug icon. If you
+leave out `FILE_ICON`, its files get the plain file icon. An icon with no
+pixels turned on counts as no icon.
 
 ## The file
 
-Plain text: 8 lines of 8 characters, `#` for a pixel that is on and `.`
-for one that is off. Blank lines are ignored; anything else is an error
-at build time.
+An icon is a plain text file with 8 lines of 8 characters. Use `#` for a
+pixel that's on and `.` for one that's off. The SDK skips blank lines,
+and anything else stops the build with an error.
 
 ```
 ..####..
@@ -34,28 +35,29 @@ at build time.
 ..####..
 ```
 
-In the `.CVP` each icon is 8 bytes, a byte a row from the top, the left
-pixel in bit 7 (the plugin's at offset 264 of the header, its files' at
-272).
+In the `.CVP`, each icon is 8 bytes, one byte per row from the top, with
+the left pixel in bit 7. The plugin icon is at offset 264 of the header,
+and the file icon is at 272.
 
 ## Drawing one
 
-- **The icon editor** on the plugin registry's site draws them in the
-  menu's colours and gives you the text to paste:
-  <https://plasticbugs.github.io/parrot-cart-plugins/>
-- Or type it: it is 64 characters.
+You can draw them with the icon editor on the plugins site. It shows
+them in the menu's colors and gives you the text to paste:
+<https://plasticbugs.github.io/parrot-cart-plugins/>
 
-What reads well at this size, on a TV:
+You can also type the 64 characters yourself.
 
-- A silhouette, not an outline of details. Fill shapes; a single stray
-  pixel is noise on a CRT.
-- Lines two pixels wide where you can. One-pixel vertical lines shimmer
-  on composite video.
-- Leave the right column or the bottom row empty if the shape allows:
-  icons sit directly beside the name's first letter.
-- Make the file icon a relative of the plugin's icon (the same shape on a
-  page, say), so a folder of your files looks like yours.
+Here are some tips for icons that read well on a TV at this size:
 
-The menu shows up to 7 different plugin icons and 7 file icons on a page;
-past that, the rest of the page falls back to the plug and the generic
-file.
+- Draw a filled silhouette instead of an outline with details. A single
+  stray pixel looks like noise on a CRT.
+- Make lines two pixels wide where you can, because one-pixel vertical
+  lines shimmer on composite video.
+- If the shape allows, leave the right column or the bottom row empty.
+  Icons sit right next to the first letter of the name.
+- Make the file icon look related to the plugin icon, such as the same
+  shape on a page, so a folder of your files is easy to recognize.
+
+The menu can show up to 7 different plugin icons and 7 file icons on one
+page. Beyond that, the rest of the page uses the plug and the plain file
+icon.

@@ -1,6 +1,6 @@
 # SD Card Example
 
-Lists the card's top folder, shows how the first file starts, and counts its own runs in a save file, `/SDCARD.SAV`, which it makes the first time (512 bytes). Delete that file whenever you like.
+Lists the card's top folder and shows the start of the first file. It also counts how many times it has run in a 512-byte save file, `/SDCARD.SAV`, which it makes the first time. You can delete that file whenever you like.
 
 ## Controls
 
