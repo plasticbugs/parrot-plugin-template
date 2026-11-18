@@ -1,6 +1,6 @@
 # MIDI Out Example
 
-The cart as a USB MIDI device. Plug its USB-C port into a computer: it appears as the MIDI input "Parrot Cart MIDI Example", and the keypad plays notes on whatever is listening there.
+Turns the cart into a USB MIDI device. Plug the cart's USB-C port into a computer, and it shows up as a MIDI input called Parrot Cart MIDI Example. The keypad then plays notes on any music app that's listening.
 
 ## Controls
 

@@ -1,11 +1,11 @@
 # Text Viewer
 
-Opens `.txt` files. Pick one in the menu and press the fire button: its first 8K is shown, 30 columns wide.
+Opens `.txt` files. Pick one in the menu and press the fire button to see its first 8 KB, 30 columns wide.
 
 ## Controls
 
-- Stick up, down: a line
-- With left fire held: a page
+- Stick up and down: scroll a line
+- Stick with left fire held: scroll a page
 - RESET: back to the menu
 
 ## Credits

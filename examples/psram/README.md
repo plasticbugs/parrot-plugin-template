@@ -1,6 +1,6 @@
 # PSRAM Example
 
-Tests the cart's 8 MB of PSRAM: fills it with a pattern, reads it back, and shows how long each took.
+Tests the cart's 8 MB of PSRAM. It fills the PSRAM with a pattern, reads it back, and shows how long each step took.
 
 ## Controls
 
