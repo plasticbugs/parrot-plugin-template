@@ -1,4 +1,4 @@
-commit 0056bfd5a91535c7fa92c1855359c93708c8a772
-date   2026-11-17T03:19:39-08:00
-about  cvusb.h: the mode names as cvusb_mode_name() gives them
-copied 2026-11-17T11:19:51Z by tools/update-sdk.sh
+commit 91a0ac6f9b57ebb1d8c61bec3e7232aa1e97e124
+date   2026-11-17T17:20:30-08:00
+about  SDK README: plain, friendly wording
+copied 2026-11-18T01:21:31Z by tools/update-sdk.sh
