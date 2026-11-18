@@ -6,7 +6,7 @@ language that's easy to learn. There are two ways to use it.
 - **On the console.** The Lua plugin (`LUA.CVP`) has a text editor. Plug in
   a USB keyboard, type a script, and press Ctrl+R to run it.
 - **With this kit.** Write a script on your computer, try it in the
-  simulator, and build it into a plugin of its own that shows up in the
+  simulator, and build it into a plugin with a name and icon in the
   cart's menu.
 
 Both run the same code, and a script written one way works the other way.
@@ -275,12 +275,12 @@ step, and each value takes half the memory that 64-bit numbers would.
 
 Brackets, function calls from C and `pcall` can nest 30 deep. A function
 that calls itself can go much deeper than that, because Lua keeps those
-calls in its own memory.
+calls on the heap, not on the chip's stack.
 
 ## When something goes wrong
 
 - A mistake in the script stops it. From the editor you go back to the
-  line. A script that is its own plugin shows the message and the line on
+  line. A script built into a plugin shows the message and the line on
   the screen, and the fire button runs it again.
 - A function that runs for 5 seconds without finishing is stopped the same
   way. The message has the line it was on.
@@ -321,16 +321,16 @@ So move things with sprites, and change the background a little at a time.
 
 A script has two kinds of memory, and Lua uses both without your help.
 
-- About 60 KB of the chip's own memory, which is fast. Small things go
+- About 60 KB of the chip's memory, which is fast. Small things go
   here: numbers, short strings, small tables.
 - 8 MB of slower memory. Anything of 4 KB or more goes here, and so does
   everything else once the fast memory is full.
 
 `mem()` gives the totals.
 
-## Your script as its own plugin
+## A script as a plugin
 
-A Lua app can be a `.CVP` with its own name and icon. The script is built
+A Lua app can be a `.CVP` with a name and icon. The script is built
 into the plugin, so there's nothing else to copy to the card. It starts at
 once, with no editor.
 
@@ -395,4 +395,4 @@ sim/test.sh lua                     # the editor and scripts in the simulator
 
 `lua/test/onarm.sh` needs Python with `unicorn` and `pyelftools`. It runs
 the speed test above, checks that the deepest nesting fits the stack, and
-runs the API test on the cart's own code.
+runs the API test on the cart's code.

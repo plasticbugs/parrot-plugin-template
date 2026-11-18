@@ -48,4 +48,4 @@ Source: <https://github.com/plasticbugs/parrot-plugin-template/tree/main/lua>
 
 ## License
 
-MIT. Lua keeps its own MIT license, in `lua/vendor/lua-5.4.8/LICENSE`.
+MIT. Lua is under the MIT license too, in `lua/vendor/lua-5.4.8/LICENSE`.
