@@ -53,11 +53,13 @@ Here are some tips for icons that read well on a TV at this size:
   stray pixel looks like noise on a CRT.
 - Make lines two pixels wide where you can, because one-pixel vertical
   lines shimmer on composite video.
-- If the shape allows, leave the right column or the bottom row empty.
+- If the shape allows, leave the top row, the bottom row and the right column
+  empty, as the menu's icons do. Then icons in a list don't run into each
+  other or into the name beside them.
   Icons sit right next to the first letter of the name.
 - Make the file icon look related to the plugin icon, such as the same
   shape on a page, so a folder of your files is easy to recognize.
 
-The menu can show up to 7 different plugin icons and 7 file icons on one
-page. Beyond that, the rest of the page uses the plug and the plain file
+The menu can show up to 7 different plugin icons and 6 different file
+icons on one page. Beyond that, the rest of the page uses the plug and the plain file
 icon.
