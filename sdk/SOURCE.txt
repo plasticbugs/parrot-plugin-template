@@ -1,4 +1,4 @@
-commit 60869308b417d43d0fdd1b4caa68b8239498684e
-date   2026-11-17T22:11:58-08:00
-about  mkcvp.py: a plugin image up to 2 MB less 4K (two cache slots)
-copied 2026-11-18T06:11:58Z by tools/update-sdk.sh
+commit deb22c868e88a963b7c2422ef2e51a8febed0591
+date   2026-11-17T23:31:34-08:00
+about  textedit/test/onarm.py: the big text named by its size
+copied 2026-11-18T07:34:18Z by tools/update-sdk.sh

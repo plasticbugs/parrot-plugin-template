@@ -29,6 +29,11 @@
 #                                (instead of cvpad_use), PSRAM cvpsram_use,
 #                                CARD cvsd_use; and the .CVP's USES follow
 #                                (usb-host, usb-device, psram)
+#   cvfont_use(myplugin)         the 6x8 font with lower case (cvfont.h): 40
+#                                columns on a canvas (../midihello/vdp.h)
+#   cvedit_use(myplugin)         the text editor (cvedit.h), with cvfont_use;
+#                                the plugin also needs cvkernel_use (the
+#                                canvas) and the KEYBOARD and CARD features
 #   cvcart_plugin(nesinfo ID parrotcart.nesinfo NAME "NES Info" VERSION 1.0.0
 #                 [BY "Parrot Cart"] [HOME /NES] [OPENS .nes ...] [USES usb-host ...]
 #                 [ICON icon.txt] [FILE_ICON icon.txt] [FILE NESINFO.CVP] [HEAP]
@@ -258,6 +263,21 @@ function(cvcart_features TARGET)
         endif()
     endif()
     set_property(TARGET ${TARGET} PROPERTY CVCART_USES "${uses}")
+endfunction()
+
+function(cvfont_use TARGET)
+    get_target_property(src ${TARGET} SOURCES)
+    if (NOT src MATCHES "cvfont\\.c")
+        target_sources(${TARGET} PRIVATE ${CVSDK_DIR}/cvfont.c)
+    endif()
+    target_include_directories(${TARGET} PRIVATE ${CVSDK_DIR})
+endfunction()
+
+# the editor: its files come through fsro (cvsd_use, or cvcart_features CARD)
+function(cvedit_use TARGET)
+    cvfont_use(${TARGET})
+    target_sources(${TARGET} PRIVATE ${CVSDK_DIR}/cvedit.c)
+    target_include_directories(${TARGET} PRIVATE ${CVSDK_DIR})
 endfunction()
 
 function(cvkernel_use TARGET)
