@@ -78,6 +78,11 @@ To start:
    release (docs/release-checklist.md). Then submit it to the plugin
    registry at <https://github.com/plasticbugs/parrot-cart-plugins>
 
+You can also write a plugin in Lua instead of C. The Lua plugin in `lua/`
+runs scripts from the card and has an editor for writing them on the
+console, and a script can be built into a plugin of its own
+(docs/lua.md).
+
 More help is in these docs:
 
 - docs/getting-started.md: installing the tools, building, and using
@@ -85,6 +90,8 @@ More help is in these docs:
 - docs/hardware.md: the chips and memory, and what a plugin can use
 - docs/features.md: game pads, keyboards, mice, MIDI, the PSRAM and the
   card, each turned on with one word in CMake
+- docs/lua.md: writing a plugin in Lua, with every function a script
+  can call
 - docs/plugin-rules.md: IDs, versions, sizes, folders, and what a plugin
   can do
 - docs/icons.md: the 8x8 icons

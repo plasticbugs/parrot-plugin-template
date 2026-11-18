@@ -62,6 +62,66 @@ function(parrotcart_frames TARGET)
     _parrotcart_common(${TARGET})
 endfunction()
 
+# A plugin written in Lua (docs/lua.md): the Lua runtime in lua/, with the
+# app's scripts built in.
+#
+#   add_executable(mygame)
+#   cvcart_features(mygame PSRAM CARD PADS)     # PSRAM and CARD always; the USB ones you use
+#   parrotcart_lua(mygame MAIN src/main.lua [FILES src/enemy.lua src/level1.txt ...] [HOME /MYGAME])
+#   cvcart_plugin(mygame ID you.mygame NAME "My Game" VERSION 0.1.0 HOME /MYGAME ...)
+#
+# MAIN is the script the plugin starts. FILES are the others: more scripts
+# for require, and anything file.read() should find. Each is known by its
+# path from MAIN's folder (src/enemy.lua is "enemy.lua"). HOME is the
+# folder on the card where the app's saves go, the same one cvcart_plugin()
+# is given.
+#
+# Without MAIN it's the Lua plugin itself (lua/CMakeLists.txt), which runs
+# scripts from the card.
+function(parrotcart_lua TARGET)
+    cmake_parse_arguments(P "" "MAIN;HOME" "FILES" ${ARGN})
+    get_target_property(features ${TARGET} CVCART_FEATURES)
+    if (NOT features MATCHES "PSRAM" OR NOT features MATCHES "CARD")
+        message(FATAL_ERROR "parrotcart_lua(${TARGET}): call cvcart_features(${TARGET} PSRAM CARD ...) first. "
+            "Lua keeps big values in the PSRAM and reads the card")
+    endif()
+    set(LUA ${PARROTCART_DIR}/lua)
+    target_sources(${TARGET} PRIVATE ${LUA}/main.c ${LUA}/api.c ${LUA}/card.c ${LUA}/heap.c ${LUA}/port.c
+                   ${LUA}/sdk_cvfont.c ${LUA}/sdk_cvedit.c
+                   ${LUA}/lua_vm.c ${LUA}/lua_libs.c)
+    # A plugin's code is in the same RAM as Lua's values, so only the part
+    # that runs a script is built for speed, and the rest for size.
+    set_source_files_properties(${LUA}/lua_vm.c ${LUA}/heap.c PROPERTIES COMPILE_OPTIONS "-O2")
+    set_source_files_properties(${LUA}/lua_libs.c ${LUA}/main.c ${LUA}/api.c ${LUA}/card.c ${LUA}/port.c
+                                ${LUA}/sdk_cvfont.c ${LUA}/sdk_cvedit.c
+                                PROPERTIES COMPILE_OPTIONS "-Os")
+    parrotcart_screen(${TARGET})
+    target_include_directories(${TARGET} PRIVATE ${LUA})
+    target_link_libraries(${TARGET} pico_rand)
+    if (P_HOME)
+        target_compile_definitions(${TARGET} PRIVATE "CVLUA_HOME=\"${P_HOME}\"")
+    endif()
+    if (P_MAIN)
+        get_filename_component(main ${P_MAIN} ABSOLUTE)
+        get_filename_component(base ${main} DIRECTORY)
+        set(files ${main})
+        foreach (f ${P_FILES})
+            get_filename_component(f ${f} ABSOLUTE)
+            list(APPEND files ${f})
+        endforeach()
+        set(header ${CMAKE_CURRENT_BINARY_DIR}/${TARGET}_lua_app.h)
+        add_custom_command(
+            OUTPUT ${header}
+            COMMAND python3 ${PARROTCART_DIR}/tools/lua-embed.py ${header} ${base} ${files}
+            DEPENDS ${files} ${PARROTCART_DIR}/tools/lua-embed.py
+            VERBATIM)
+        target_sources(${TARGET} PRIVATE ${header})
+        target_compile_definitions(${TARGET} PRIVATE "CVLUA_APP_HEADER=\"${header}\"")
+    elseif (P_FILES)
+        message(FATAL_ERROR "parrotcart_lua(${TARGET}): FILES without MAIN, the script the plugin starts")
+    endif()
+endfunction()
+
 function(_parrotcart_common TARGET)
     # no serial console: the USB port is the plugin's to use, and printf
     # would bring in 19K of newlib that a plugin in SRAM can't spare

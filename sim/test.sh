@@ -15,7 +15,7 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames psram vdp usb. Pictures and logs: build-sim/test/.
+# sd-card open-file frames psram lua vdp usb. Pictures and logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
 # told not to turn the card's "/NOTES/..." into a path on this computer)
@@ -185,6 +185,41 @@ if wanted psram; then
     expect 'note "PSRAM example: 8 MB right"'
     run psram-missing "$kit/examples/psram" --no-psram --ms 1000
     expect 'note "PSRAM example: no PSRAM"'
+fi
+# ---- the Lua plugin (lua/, docs/lua.md): a folder as the card, with scripts in its /LUA ----
+if wanted lua; then
+    lt=$kit/lua/test/scripts
+    rm -rf "$out/luacard"; mkdir -p "$out/luacard/LUA/SUB"
+    cp "$kit"/lua/examples/*.lua "$lt/files.lua" "$lt/error.lua" "$out/luacard/LUA/"
+    printf 'return {answer = 42}\n' > "$out/luacard/LUA/lib.lua"
+    printf 'one\ntwo\nthree\n' > "$out/luacard/LUA/notes.txt"
+    printf 'deep\n' > "$out/luacard/LUA/SUB/deep.txt"
+    export LUA_SEED=1
+    # started by itself: the editor's list of /LUA (colours, error, files, hello, lib, snake,
+    # sprites). Down six times to sprites.lua, fire opens it, keypad 4 runs it, and Esc on the
+    # USB keyboard stops it
+    run luasim-editor "$kit/lua" --card "$out/luacard" --usb host --ms 8000 --script "1500:snap=list 1600:joy=down 1700:joy= 1800:joy=down 1900:joy= 2000:joy=down 2100:joy= 2200:joy=down 2300:joy= 2400:joy=down 2500:joy= 2600:joy=down 2700:joy= 2900:joy=fire 3000:joy= 3600:snap=editor 3700:key=4 3800:key= 5500:snap=sprites 5600:simrole=keyboard 5620:simkey=29 5640:simkeyup=29 7000:snap=stopped"
+    expect 'sound [0-9]+Hz@7 - - noise@15'
+    if [ -z "$skip" ]; then
+        cmp -s "$o/sprites.png" "$o/editor.png" && fail "keypad 4 didn't run the script"
+        cmp -s "$o/sprites.png" "$o/stopped.png" && fail "Esc didn't stop the script"
+    fi
+    # opened as from the menu and run with keypad 4, three times: the save counts the runs
+    for n in 1 2 3; do
+        run "luasim-files-$n" "$kit/lua" --card "$out/luacard" --open /LUA/files.lua --ms 4000 --script "1500:key=4 1600:key="
+        expect "note \"files run $n\""
+    done
+    # a script with a mistake: back in the editor on its line. A line typed at the top, Ctrl+S
+    run luasim-error "$kit/lua" --card "$out/luacard" --open /LUA/error.lua --usb host --ms 6000 --script "1500:key=4 1600:key= 3500:snap=mistake 3600:simrole=keyboard 3620:simkey=E0 3640:simkey=4A 3660:simkeyup=4A 3680:simkeyup=E0 3700:simkey=1B 3720:simkeyup=1B 3740:simkey=28 3760:simkeyup=28 3800:simkey=E0 3820:simkey=16 3840:simkeyup=16 3860:simkeyup=E0"
+    expect 'note "error.lua:2: attempt to index a "'
+    if [ -z "$skip" ]; then
+        got=$("$py" -I "$kit/lua/test/cardcheck.py" "$out/luacard/LUA" "$lt/error.lua" 2>&1) || true
+        if [ "$got" = ok ]; then echo "  the folder: the files are as the scripts and the editor wrote them"; else fail "the card folder: $got"; fi
+    fi
+    # a script run at once, as sim/lua.sh --run does
+    LUA_RUN=1 run luasim-snake "$kit/lua" --open "$kit/lua/examples/snake.lua" --ms 9000 --script "1000:joy=fire 1100:joy= 1500:joy=down 1600:joy= 2500:joy=left 2600:joy="
+    expect 'note "Snake: [0-9]+ points"'
+    unset LUA_SEED LUA_RUN
 fi
 if wanted vdp; then
     for k in 1 2 3 4 5 6; do
