@@ -619,8 +619,8 @@ static int load_file(cvedit_t *e, fs_t *fs, const char *dir, const fs_file_t *f)
     char s[sizeof e->msg];
     if (f->is_dir) return fail(e, "Not opened", FS_ENAME);
     if (f->size > e->cfg.cap) {
-        snprintf(s, sizeof s, "Too big: %lu KB. The most is %lu KB", (unsigned long)((f->size + 1023) / 1024),
-                 (unsigned long)(e->cfg.cap / 1024));
+        snprintf(s, sizeof s, "Too big: %u KB. The most is %u KB", (unsigned)((f->size + 1023) / 1024),
+                 (unsigned)(e->cfg.cap / 1024));
         say(e, true, s);
         return FS_EFULL;
     }
