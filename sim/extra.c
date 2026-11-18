@@ -15,7 +15,7 @@
 
 // the desktop's malloc has room; this is about what the cart's heap has
 // once a plugin of a few hundred K is loaded (the cart says nothing like it:
-// docs/simulator.md, "What the simulator can't tell you")
+// docs/simulator.md, "What the simulator can't show you")
 uint32_t cvheap_free(void) { return 300 * 1024; }
 uint32_t cvheap_largest(void) { return 300 * 1024; }
 uint32_t cvheap_reserve(void) { return 300 * 1024; }

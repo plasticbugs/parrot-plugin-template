@@ -37,7 +37,7 @@ FEATURES = [
     ("keyboard", "KEYBOARD", "a USB keyboard"),
     ("mouse", "MOUSE", "a USB mouse"),
     ("midi-in", "MIDI_IN", "MIDI in, from a USB MIDI keyboard"),
-    ("midi-out", "MIDI_OUT", "MIDI out, to a computer: the cart as its MIDI device"),
+    ("midi-out", "MIDI_OUT", "MIDI out to a computer, with the cart as its MIDI device"),
     ("psram", "PSRAM", "the 8 MB PSRAM"),
     ("saves", "CARD", "a save file on the card"),
 ]
@@ -100,9 +100,9 @@ def check_name(s):
     if not s:
         raise Bad("it needs a name")
     if len(s) > 32:
-        raise Bad("32 characters at most (the menu's line)")
+        raise Bad("it can be up to 32 characters, the length of a menu line")
     if not all(32 <= ord(c) < 127 for c in s) or any(c in s for c in '"\\'):
-        raise Bad('plain letters, digits and punctuation, without " or \\')
+        raise Bad('use plain letters, digits and punctuation, without " or \\')
     return s
 
 
@@ -126,14 +126,14 @@ def default_id(by, name):
 def check_id(s):
     s = s.strip()
     if not re.fullmatch(r"[a-z0-9_-]+(\.[a-z0-9_-]+)+", s) or len(s) > 32:
-        raise Bad("developer.pluginname: lower-case letters, digits, . - _, 32 at most (docs/plugin-rules.md)")
+        raise Bad("use developer.pluginname, with lowercase letters, digits, . - and _, up to 32 characters (docs/plugin-rules.md)")
     return s
 
 
 def check_version(s):
     s = s.strip()
     if not re.fullmatch(r"\d+\.\d+\.\d+", s):
-        raise Bad("major.minor.patch, as 0.1.0")
+        raise Bad("use major.minor.patch, like 0.1.0")
     return s
 
 
@@ -144,14 +144,14 @@ def check_home(s):
     if not s.startswith("/"):
         s = "/" + s
     if len(s) > 32 or not re.fullmatch(r"(/[A-Za-z0-9 _.\-]+)+", s):
-        raise Bad("a folder on the card, as /SWEEPER: letters, digits, space . - _, 32 characters at most")
+        raise Bad("use a folder on the card, like /SWEEPER, with letters, digits, spaces, . - and _, up to 32 characters")
     return s
 
 
 def check_opens(s):
     exts = [e if e.startswith(".") else "." + e for e in re.split(r"[\s,]+", s.strip()) if e]
     if len(exts) > 8 or any(not re.fullmatch(r"\.[A-Za-z0-9]{1,7}", e) for e in exts):
-        raise Bad("up to 8 extensions, each a dot and 1-7 letters or digits, as .swp .lvl")
+        raise Bad("list up to 8 extensions, each a dot and 1-7 letters or digits, like .swp .lvl")
     return exts
 
 
@@ -192,8 +192,8 @@ def check_icon(s):
         rows = [r.strip() for r in open(s) if r.strip()]
         if len(rows) == 8 and all(len(r) == 8 and not set(r) - set("#.") for r in rows):
             return os.path.abspath(s)
-        raise Bad(f"{s}: 8 lines of 8 # and . (docs/icons.md)")
-    raise Bad(f"one of {', '.join(ICONS)}, or a file of 8 lines of 8 # and .")
+        raise Bad(f"{s}: an icon file needs 8 lines of 8 # and . characters (docs/icons.md)")
+    raise Bad(f"pick one of {', '.join(ICONS)}, or a file of 8 lines of 8 # and .")
 
 
 def check_license(s):
@@ -202,11 +202,11 @@ def check_license(s):
         if s.lower() == k.lower():
             return k
     if not re.fullmatch(r"[A-Za-z0-9.+\-]+", s):
-        raise Bad("an SPDX license ID, as MIT, BSD-3-Clause, Apache-2.0 or GPL-3.0-or-later")
+        raise Bad("use an SPDX license ID, like MIT, BSD-3-Clause, Apache-2.0 or GPL-3.0-or-later")
     m = re.fullmatch(r"(?i)(L?GPL-\d\.\d)\+?", s)
     if m:
         v = m.group(1).upper()
-        raise Bad(f"{v}-only or {v}-or-later: which?")
+        raise Bad(f"which one, {v}-only or {v}-or-later?")
     return s
 
 
@@ -1020,36 +1020,38 @@ cvcart_plugin({p.target} ID {p.id} NAME "{p.name}" VERSION {p.version} BY "{p.by
 
 def readme(p):
     md = lambda s: s.replace("*", "\\*").replace("_", "\\_")
-    controls = ["Stick, fire buttons and keypad: shown on the TV, and counted"]
+    controls = ["Stick, fire buttons and keypad: shown on the TV and counted as you press them"]
     if p.has("pads"):
-        controls.append("A USB game pad: the same as the console's controller. The d-pad or left stick is "
-                        "the stick, B and A the fire buttons, X and Y the keypad's \\* and #. "
-                        "Its buttons and sticks are shown on the TV.")
+        controls.append("A USB game pad: works like the console's controller. The d-pad or left stick is "
+                        "the stick, B and A are the fire buttons, and X and Y are the keypad's \\* and #. "
+                        "Its buttons and sticks show on the TV.")
     if p.has("keyboard"):
-        controls.append("A USB keyboard: what you type is shown on the TV")
+        controls.append("A USB keyboard: what you type shows on the TV")
     if p.has("mouse"):
-        controls.append("A USB mouse: where it is, its buttons and its wheel are shown on the TV")
+        controls.append("A USB mouse: its position, buttons and wheel show on the TV")
     if p.has("midi-out"):
-        controls.append("Keypad 1-8: MIDI notes out, C to C")
+        controls.append("Keypad 1-8: send MIDI notes, C to C")
     controls.append("RESET: back to the cart's menu")
     needs = []
     if p.has(*HOST_FEATURES):
         things = english([t for k, t in [("pads", "game pads"), ("keyboard", "a keyboard"), ("mouse", "a mouse"),
                                           ("midi-in", "a USB MIDI keyboard")] if p.has(k)])
-        needs.append(f"For {things}: a powered USB hub between them and the cart. The cart can't power them itself.")
+        needs.append(f"For {things}, you need a powered USB hub between them and the cart, because the cart "
+                     "can't power them.")
     if p.has("midi-out"):
-        needs.append(f"For MIDI out: a computer. Plug the cart into it before you start {md(p.name)}. It shows up "
-                     f"as a MIDI port called {md(p.name)}. On a Mac, the first time, allow the accessory to connect.")
+        needs.append(f"For MIDI out, you need a computer. Plug the cart into it before you start {md(p.name)}, "
+                     f"and it shows up as a MIDI port called {md(p.name)}. On a Mac, allow the accessory to "
+                     "connect the first time.")
         if p.has(*HOST_FEATURES):
-            needs.append("The USB port is one or the other: if no computer takes the cart within a second "
-                         "and a half, it looks for the hub instead.")
+            needs.append("The USB port works with either a computer or a hub. If no computer connects within "
+                         "a second and a half, the cart uses the hub instead.")
     if p.has("saves"):
         if p.home:
-            needs.append(f"Saves: in `{p.home}/{p.save_file}`. Make the folder `{p.home}` on the card first.")
+            needs.append(f"Saves go in `{p.home}/{p.save_file}`. Make the folder `{p.home}` on the card first.")
         else:
-            needs.append(f"Saves: in `/PLUGINS/{p.save_file}`, beside the plugin.")
+            needs.append(f"Saves go in `/PLUGINS/{p.save_file}`, next to the plugin.")
     if p.opens:
-        needs.append("It opens " + english([f"`{e}`" for e in p.opens]) + " files: pick one in the menu.")
+        needs.append("It opens " + english([f"`{e}`" for e in p.opens]) + " files. Pick one in the menu to start it.")
     if p.home and not p.has("saves"):
         needs.append(f"Its files go in `{p.home}` on the card.")
     credits = [f"Parrot Cart plugin template and SDK, by the Parrot Cart contributors, MIT: <{TEMPLATE_URL}>"]
@@ -1062,15 +1064,15 @@ def readme(p):
         out += ["", "## What it needs", ""] + [f"- {n}" for n in needs]
     out += ["", "## Credits", ""] + [f"- {c}" for c in credits]
     out += ["", "Source: put your repository's address here.", "", "## License", "",
-            f"{p.license}: see LICENSE. THIRD-PARTY.md lists what came from elsewhere.", "",
+            f"{p.license}. See LICENSE. THIRD-PARTY.md lists the parts that came from other projects.", "",
             "## Building", "",
             f"Your code is in `src/main.c`, where it says YOUR CODE. To build `build/{p.file}`:", "",
             "```sh", "cmake -B build -G Ninja \\", "  -DPICO_SDK_PATH=$HOME/pico-sdk", "ninja -C build", "```", "",
-            "- docs/getting-started.md: the tools, and the card",
-            "- docs/features.md: the features",
+            "- docs/getting-started.md: installing the tools, and using the card",
+            "- docs/features.md: the features and how to use them",
             f"- docs/testing.md: `test/run.sh {' '.join(p.ci_tests())}` tries it on a model of the console",
             "- docs/simulator.md: `sim/run.sh src` plays it in a window, with sound and controls",
-            "- docs/release-checklist.md: before you tag a release", ""]
+            "- docs/release-checklist.md: what to check before you tag a release", ""]
     return "\n".join(out)
 
 
@@ -1089,10 +1091,10 @@ def third_party(old, p, examples):
     _, _, rest = rest.partition("\n\n")
     head = "# What in this repository came from elsewhere"
     parts = "build files, `lib/`, `test/`, `tools/`, `docs/`" + (", `examples/`" if examples else "") + " and workflows"
-    intro = (f"The plugin's own code is {p.license} (`LICENSE`). The plugin template it started from (its "
+    intro = (f"The plugin's code is {p.license} (`LICENSE`). The plugin template it started from (its "
              f"{parts}) and the copy of the "
-             "cart's SDK in `sdk/` are the Parrot Cart contributors', MIT, below. These parts came from "
-             "elsewhere and keep their own terms:")
+             "cart's SDK in `sdk/` are by the Parrot Cart contributors, under the MIT license below. "
+             "These parts came from other projects and keep their original licenses:")
     rest = re.sub(r"\n## The plugin template's license\n.*", "", rest, flags=re.S).rstrip("\n")
     mit = license_file("MIT", 2026, TEMPLATE_HOLDER)
     return f"{head}\n\n{wrap(intro)}\n\n{rest}\n\n## The plugin template's license\n\n```\n{mit}```\n"
@@ -1302,52 +1304,53 @@ def one_of(*options):
 
 
 def interview(a):
-    print("A new Parrot Cart plugin. Enter takes what is in [brackets].\n")
-    a.name = ask("Its name, as the menu shows it", check_name, a.name)
-    a.by = ask("Your name, as the menu shows it beside it", check_by, a.by)
-    a.id = ask("Its ID, yours for good (docs/plugin-rules.md)", check_id, a.id or default_id(a.by, a.name))
-    a.about = ask("What it is, in a sentence", lambda s: s.strip(), a.about or
+    print("This makes a new Parrot Cart plugin. Press Enter to use the answer in [brackets].\n")
+    a.name = ask("Plugin name, as the menu shows it", check_name, a.name)
+    a.by = ask("Your name, as the menu shows it next to the plugin's", check_by, a.by)
+    a.id = ask("Plugin ID, which stays the same in every version (docs/plugin-rules.md)", check_id,
+               a.id or default_id(a.by, a.name))
+    a.about = ask("What the plugin is, in one sentence", lambda s: s.strip(), a.about or
                   "A plugin for the Parrot Cart, the ColecoVision SD cartridge.")
-    a.version = ask("Its first version", check_version, a.version)
-    print("\nThe screen:")
+    a.version = ask("First version", check_version, a.version)
+    print("\nChoose how the plugin draws the screen:")
     for i, (k, what) in enumerate(SCREENS, 1):
         print(f"  {i}. {k:7} {what}")
-    a.screen = ask("Which", check_screen, a.screen)
-    print("\nThe features (docs/features.md):")
+    a.screen = ask("Which one", check_screen, a.screen)
+    print("\nChoose the features you want (docs/features.md):")
     for i, (k, _, what) in enumerate(FEATURES, 1):
         print(f"  {i}. {k:9} {what}")
-    a.features = ask("Which: numbers or names, or none", check_features, ",".join(a.features) if a.features else "none")
+    a.features = ask("Which ones (numbers or names, or none)", check_features, ",".join(a.features) if a.features else "none")
     print()
-    a.home = ask("A folder on the card for its files" + (" and saves" if "saves" in a.features else "") +
-                 ", as /SWEEPER, or none", lambda s: "" if s.strip().lower() == "none" else check_home(s), a.home or "none")
-    a.opens = ask("File types it opens from the menu, as .swp .lvl, or none",
+    a.home = ask("A folder on the card for the plugin's files" + (" and saves" if "saves" in a.features else "") +
+                 ", like /SWEEPER, or none", lambda s: "" if s.strip().lower() == "none" else check_home(s), a.home or "none")
+    a.opens = ask("File types it opens from the menu, like .swp .lvl, or none",
                   lambda s: [] if s.strip().lower() == "none" else check_opens(s), " ".join(a.opens) if a.opens else "none")
-    print("\nIts icon (8x8: docs/icons.md):")
+    print("\nChoose an icon (8x8, docs/icons.md):")
     print("  " + "  ".join(f"{i} {k:8}" for i, k in enumerate(ICONS, 1)))
     for r in range(8):
         print("  " + "  ".join(f"  {ICONS[k][r]}" for k in ICONS).replace(".", " "))
     default_icon = "note" if {"midi-in", "midi-out"} & set(a.features) else "pad" if "pads" in a.features else "star"
-    a.icon = ask("Which, or a file of your own", check_icon, a.icon or default_icon)
-    print("\nThe license for your code, as an SPDX ID. Full text comes with these:")
+    a.icon = ask("Which one, or a file you made", check_icon, a.icon or default_icon)
+    print("\nChoose a license for your code, as an SPDX ID. These come with the full text:")
     print("  " + "\n  ".join(wrap(", ".join(LICENSES), 72).split("\n")))
-    print("Any other gets a LICENSE to paste its text into.")
-    a.license = ask("Which", check_license, a.license)
+    print("For any other license, you get a LICENSE file to paste its text into.")
+    a.license = ask("Which one", check_license, a.license)
     if not a.here and not a.out:
-        print("\nWhere:")
-        print("  1. a new folder: a copy of this kit, made into the plugin")
-        print("  2. here: this kit, made into the plugin in place of Hello")
-        where = ask("Which", one_of("1", "2"), "1")
+        print("\nWhere should the plugin go?")
+        print("  1. a new folder, with a copy of this kit made into the plugin")
+        print("  2. here, turning this kit into the plugin in place of Hello")
+        where = ask("Which one", one_of("1", "2"), "1")
         if where == "2":
             a.here = True
         else:
-            a.out = ask("The folder", lambda s: s, default_out(a.name))
+            a.out = ask("Which folder", lambda s: s, default_out(a.name))
     if a.examples is None:
-        a.examples = ask("\nKeep examples/, one small plugin for each thing a plugin can do? y/n",
+        a.examples = ask("\nKeep examples/, the small plugins that each show one thing? y/n",
                          one_of("y", "n"), "n") == "y"
     p = Plugin(a)
     print(f"\n{p.name} {p.version} by {p.by} ({p.id}): {p.screen} screen, "
           f"features: {', '.join(p.features) or 'none'}, {p.license}, to {'this kit' if a.here else a.out}")
-    if ask("Write it? y/n", one_of("y", "n"), "y") != "y":
+    if ask("Write the plugin? y/n", one_of("y", "n"), "y") != "y":
         raise SystemExit(1)
     return p
 
@@ -1358,30 +1361,30 @@ def default_out(name):
 
 def main():
     ap = argparse.ArgumentParser(
-        description="Start a Parrot Cart plugin: the features you pick, wired in and shown on the TV. "
-                    "With no --name it asks, a question at a time.",
+        description="Start a Parrot Cart plugin with the features you pick, already working and shown on "
+                    "the TV. Without --name, it asks you one question at a time.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="features: " + ", ".join(FEATURE_KEYS) + " (or all, none)\n"
                "icons: " + ", ".join(ICONS) + ", or a file\n"
                "example:\n  tools/new-plugin.py --name \"Star Sweeper\" --by \"Ann\" "
                "--features pads,keyboard,midi-in --screen text")
-    ap.add_argument("--name", help="as the menu shows it, 32 characters at most")
-    ap.add_argument("--by", help="you, as the menu shows it")
+    ap.add_argument("--name", help="the plugin's name as the menu shows it, up to 32 characters")
+    ap.add_argument("--by", help="your name, as the menu shows it")
     ap.add_argument("--id", help="developer.pluginname (default: from --by and --name)")
-    ap.add_argument("--about", help="what it is, in a sentence (the README's first line)")
-    ap.add_argument("--version", default="0.1.0", help="its first version (default 0.1.0)")
+    ap.add_argument("--about", help="what the plugin is, in one sentence (the README's first line)")
+    ap.add_argument("--version", default="0.1.0", help="the first version (default 0.1.0)")
     ap.add_argument("--screen", default="text", help="text (the default) or frames")
     ap.add_argument("--features", default="", help="comma-separated (default: none)")
-    ap.add_argument("--home", default="", help="its folder on the card, as /SWEEPER (default: none)")
-    ap.add_argument("--opens", default="", help="file types the menu opens with it, as '.swp .lvl' (default: none)")
+    ap.add_argument("--home", default="", help="the plugin's folder on the card, like /SWEEPER (default: none)")
+    ap.add_argument("--opens", default="", help="file types the menu opens with it, like '.swp .lvl' (default: none)")
     ap.add_argument("--icon", help="an icon's name, or a file (default: one that suits the features)")
     ap.add_argument("--license", default="MIT",
-                    help="an SPDX ID for your code (default MIT). Full text built in for " + ", ".join(LICENSES) +
-                         "; any other gets a LICENSE to paste its text into")
-    ap.add_argument("--out", help="a new folder for it (default: beside this kit, named after the plugin)")
+                    help="an SPDX ID for your code (default MIT). The full text is built in for " + ", ".join(LICENSES) +
+                         ". Any other license gets a LICENSE file to paste its text into")
+    ap.add_argument("--out", help="a new folder for the plugin (default: next to this kit, named after the plugin)")
     ap.add_argument("--here", action="store_true", help="make this kit into the plugin, in place of Hello")
     ap.add_argument("--examples", action="store_true", default=None,
-                    help="keep examples/, one small plugin for each thing a plugin can do (default: left out)")
+                    help="keep examples/, the small plugins that each show one thing (default: left out)")
     ap.add_argument("--force", action="store_true", help="write over src/main.c that isn't Hello, or into a folder that isn't empty")
     a = ap.parse_args()
     if a.here and a.out:
@@ -1397,12 +1400,12 @@ def main():
             a.icon = check_icon(a.icon)
         if a.name is None:
             if not sys.stdin.isatty():
-                ap.error("--name and --by, or run it in a terminal to be asked")
+                ap.error("give --name and --by, or run it in a terminal to answer questions")
             p = interview(a)
         else:
             a.name = check_name(a.name)
             if a.by is None:
-                ap.error("--by: you, as the menu shows it")
+                ap.error("--by needs your name, as the menu shows it")
             a.by = check_by(a.by)
             a.id = check_id(a.id) if a.id else None
             p = Plugin(a)
@@ -1412,17 +1415,17 @@ def main():
     if a.here:
         root = KIT
         if not is_hello(root) and not a.force:
-            raise SystemExit("new-plugin.py: src/main.c isn't the template's Hello: it may be your code. "
-                             "--force writes over it")
+            raise SystemExit("new-plugin.py: src/main.c isn't the template's Hello, so it may be your code. "
+                             "Use --force to write over it")
         examples = bool(a.examples)
         if not examples and os.path.isdir(os.path.join(root, "examples")):
             shutil.rmtree(os.path.join(root, "examples"))
     else:
         root = os.path.abspath(a.out or default_out(p.name))
         if os.path.commonpath([root, KIT]) == KIT:
-            raise SystemExit(f"new-plugin.py: {root} is inside this kit: put it somewhere else")
+            raise SystemExit(f"new-plugin.py: {root} is inside this kit. Please pick a folder outside it")
         if os.path.exists(root) and os.listdir(root) and not a.force:
-            raise SystemExit(f"new-plugin.py: {root} isn't empty (--force to write into it)")
+            raise SystemExit(f"new-plugin.py: {root} isn't empty. Use --force to write into it")
         examples = bool(a.examples)
         copy_kit(root, examples)
     reshape(root, p, examples)
@@ -1430,18 +1433,18 @@ def main():
     where = os.path.relpath(root)
     print(f"{p.name}: {where}")
     print(f"  CMakeLists.txt   {p.id} {p.version}, {p.screen} screen, features: {' '.join(p.words) or 'none'}")
-    print("  src/main.c       each feature on the TV; YOUR CODE marks where yours goes")
-    print(f"  README.md        controls, what it needs, credits; LICENSE {p.license}")
-    print(f"  test/run.sh      its tests: {' '.join(p.tests())} (sim/test.sh too)")
+    print("  src/main.c       each feature on the TV, with YOUR CODE where your code goes")
+    print(f"  README.md        controls, what it needs and credits (license {p.license})")
+    print(f"  test/run.sh      tests for it: {' '.join(p.tests())} (and in sim/test.sh)")
     if p.license not in LICENSES:
         print(f"  LICENSE          paste the {p.license} text into it")
     print("  examples/        " + ("kept" if examples else "left out (--examples keeps it)"))
-    print("Next:")
+    print("Next steps:")
     if root != KIT:
         print(f"  cd {where}")
     print("  cmake -B build -G Ninja -DPICO_SDK_PATH=$HOME/pico-sdk && ninja -C build")
     print(f"  test/run.sh {' '.join(p.tests())}")
-    print("  sim/run.sh src                     (in a window: docs/simulator.md)")
+    print("  sim/run.sh src                     (in a window, see docs/simulator.md)")
 
 
 if __name__ == "__main__":

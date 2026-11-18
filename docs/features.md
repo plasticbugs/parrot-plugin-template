@@ -1,16 +1,17 @@
 # Features
 
-A plugin turns on what it uses with one line of CMake. Each feature
-brings its code, sets up the USB port with only what it needs, and adds
-its flag to the `.CVP`'s `USES`. A plugin without a feature doesn't
-carry its code.
+You turn on the features your plugin uses with one line of CMake. Each
+feature adds its code, sets up the USB port with only what that feature
+needs, and adds its flag to the `.CVP`'s `USES`. Features you don't turn
+on add no code to your plugin.
 
 ```cmake
 cvcart_features(myplugin PADS KEYBOARD MOUSE MIDI_IN MIDI_OUT PSRAM CARD)
 ```
 
-It goes before `cvcart_plugin()`. `tools/new-plugin.py` writes it for
-you, with each feature working on the TV in `src/main.c`:
+Put it before `cvcart_plugin()`. `tools/new-plugin.py` writes this line
+for you, and puts working code for each feature in `src/main.c` so you
+can see it on the TV:
 
 ```sh
 tools/new-plugin.py                         # asks, a question at a time
@@ -18,8 +19,8 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann" \
     --features pads,keyboard,midi-in --screen text
 ```
 
-The new plugin leaves out the kit's `examples/` (`--examples` keeps
-them). The examples this page names are in the kit.
+The new plugin leaves out the kit's `examples/`, unless you add
+`--examples`. The examples named below are in the kit.
 
 | Feature | What plugs in | The USB port | `USES` |
 |---|---|---|---|
@@ -27,40 +28,42 @@ them). The examples this page names are in the kit.
 | `KEYBOARD` | a USB keyboard | host | usb-host |
 | `MOUSE` | a USB mouse | host | usb-host |
 | `MIDI_IN` | a USB MIDI keyboard, or any class-compliant MIDI device | host | usb-host |
-| `MIDI_OUT` | a computer: the cart is a MIDI device on it | device | usb-device |
-| `PSRAM` | nothing: the cart's 8 MB PSRAM | | psram |
-| `CARD` | nothing: the SD card, for files and saves | | |
+| `MIDI_OUT` | a computer, with the cart as a MIDI device on it | device | usb-device |
+| `PSRAM` | nothing (it's the cart's 8 MB PSRAM) | | psram |
+| `CARD` | nothing (it's the SD card, for files and saves) | | |
 
 `tools/new-plugin.py --name "Feature Test" --by You --features all`
-makes a plugin with all of them on and every input on the TV: a quick way
-to try a pad, a hub or a keyboard on the console.
+makes a plugin with every feature turned on and every input shown on the
+TV. It's a quick way to try a pad, a hub or a keyboard on the console.
 
 ## The USB port: host or device
 
-The cart's USB port is one or the other.
+The cart's USB port works as either a host or a device.
 
-- **A host**, for `PADS`, `KEYBOARD`, `MOUSE` and `MIDI_IN`. The cart
-  can't power what is plugged in: use a powered USB hub between the
-  devices and the cart. A hub takes several at once: two pads, a
-  keyboard, a mouse and a MIDI keyboard together are fine.
-- **A device**, for `MIDI_OUT`: the cart is a MIDI port on a computer,
-  named after the plugin.
+- As a host, it's for `PADS`, `KEYBOARD`, `MOUSE` and `MIDI_IN`. The
+  cart can't power what's plugged in, so put a powered USB hub between
+  the devices and the cart. A hub can take several devices at once, such
+  as two pads, a keyboard, a mouse and a MIDI keyboard together.
+- As a device, it's for `MIDI_OUT`. The cart shows up as a MIDI port on a
+  computer, named after the plugin.
 
-With host features and `MIDI_OUT` together, the port starts as a device.
-A computer that takes the cart within 1.5 seconds keeps it a device.
-Anything else (a hub, nothing at all) makes it a host. A Mac asks its
-user before it takes a new MIDI device ("Allow accessory to connect?").
-While it asks, the port waits for up to a minute, and `cvusb_mode()` says
-`CVUSB_ASKING`: show that, and let a button call `cvusb_host_now()` to
-stop waiting. The choice is made once, at the start.
+If you turn on host features and `MIDI_OUT` together, the port starts as
+a device. If a computer connects to the cart within 1.5 seconds, the
+port stays a device. Otherwise (with a hub, or with nothing at all), it
+becomes a host. A Mac asks its user before it accepts a new MIDI device
+("Allow accessory to connect?"). While the Mac is asking, the port waits
+for up to a minute, and `cvusb_mode()` returns `CVUSB_ASKING`. Show that
+on the screen, and let a button call `cvusb_host_now()` to stop waiting.
+The port picks host or device once, at the start.
 
-MIDI goes both ways on whichever MIDI connection there is. As a device,
-`cvusb_midi_read()` gets what the computer sends, and `cvusb_midi_send()`
-sends to it. As a host with `MIDI_IN`, both go to the MIDI keyboard.
+MIDI works in both directions on whichever MIDI connection there is. As
+a device, `cvusb_midi_read()` gets what the computer sends, and
+`cvusb_midi_send()` sends to the computer. As a host with `MIDI_IN`, both
+talk to the MIDI keyboard.
 
 ## The calls
 
-All in `sdk/firmware/revc/sdk/cvusb.h`:
+They're all in `sdk/firmware/revc/sdk/cvusb.h`:
 
 ```c
 #include "cvusb.h"
@@ -72,8 +75,9 @@ for (;;) {
 }
 ```
 
-A call for a feature that is off is a build error that names it: `turn
-on KEYBOARD in cvcart_features()`.
+If you call a function for a feature that's turned off, the build fails
+with an error that names the feature, such as `turn on KEYBOARD in
+cvcart_features()`.
 
 ### Game pads: `PADS`
 
@@ -86,12 +90,12 @@ if (cvusb_pad(0, &p)) {         // pad 0 or 1: false if it isn't there (yet)
 cvusb_pad_kind(0)               // "SWITCH PRO" or "HID PAD": what it is
 ```
 
-Buttons are named by where they are: `GP_SOUTH` is the bottom face
+Buttons are named by where they are, so `GP_SOUTH` is the bottom face
 button (B on a Nintendo pad, A on an Xbox one). The Switch Pro
-Controller, pads in Switch mode and plain HID pads work. A Switch pad
-takes a moment to start after it is plugged in: `cvusb_pad_kind()` names
-it before `cvusb_pad()` has it. The triggers are buttons (`GP_ZL`,
-`GP_ZR`).
+Controller, pads in Switch mode and plain HID pads are supported. A
+Switch pad takes a moment to start after it's plugged in, so
+`cvusb_pad_kind()` can name it before `cvusb_pad()` returns it. The
+triggers are buttons (`GP_ZL`, `GP_ZR`).
 
 ### The keyboard: `KEYBOARD`
 
@@ -105,7 +109,8 @@ while (cvusb_key(&k)) {         // each key as it goes down and as it comes up
 }
 ```
 
-The modifiers come as keys too (usage 0xE0-0xE7). 32 keys wait at most.
+The modifier keys come in as keys too (usage 0xE0-0xE7). Up to 32 keys
+can be waiting to be read.
 
 ### The mouse: `MOUSE`
 
@@ -130,9 +135,9 @@ const uint8_t note_on[3] = {0x90, 60, 100};
 cvusb_midi_send(note_on, 3);    // whole messages (a SysEx too); false: nowhere to send it, or no room now
 ```
 
-Note, controller, program and pitch messages, the clock and the other
-one-byte ones come in. SysEx doesn't. 64 messages wait at most;
-`cvusb_midi_dropped()` counts what didn't fit.
+Incoming MIDI includes note, controller, program and pitch messages, the
+clock, and the other one-byte messages, but not SysEx. Up to 64 messages
+can be waiting, and `cvusb_midi_dropped()` counts any that didn't fit.
 
 ### The port
 
@@ -143,17 +148,19 @@ cvusb_status_t s;
 cvusb_status(&s);               // s.pads, s.keyboards, s.mice: how many; s.midi: a MIDI connection
 ```
 
-As a host, the USB work runs every millisecond from a timer's interrupt,
-so the pads keep being read while the plugin is busy. Don't call
-TinyUSB's own functions (`tuh_*`, `tud_*`) in a plugin that uses these.
+As a host, the USB work runs every millisecond from a timer interrupt, so
+the pads are still read while your plugin is busy. If your plugin uses
+these calls, please don't also call TinyUSB's functions (`tuh_*`,
+`tud_*`) directly, since `cvusb` is already running TinyUSB for you.
 
 ### Player 1: `cvinput.h`
 
-The console's controller and USB pad 1 as one player, for either screen
-kernel. With `PADS` on, a USB pad counts as the console's controller does
-in the cart's menu: the d-pad or left stick is the stick, B and A the
-fire buttons, X and Y the keypad's `*` and `#`. Without it, it is the
-console's controller alone.
+`cvinput.h` combines the console's controller and USB pad 1 into one
+player, for either kernel. With `PADS` on, a USB pad works like the
+console's controller, the same way it does in the cart's menu. The d-pad
+or left stick is the stick, B and A are the fire buttons, and X and Y are
+the keypad's `*` and `#`. Without `PADS`, it reads only the console's
+controller.
 
 ```c
 cvin_t in;
@@ -178,17 +185,19 @@ if (cvpsram_init()) {           // once, at the start
 
 ### The card: `CARD`
 
-`cvsd.h`: the card, its FAT or exFAT file system, reading files, and
-writing a file in place. `examples/sd-card` lists a folder and keeps a
-save file; `examples/open-file` reads the file the menu opened the plugin
-with. A plugin made by `tools/new-plugin.py` keeps its save in its home
-folder (`HOME`), or in `/PLUGINS` beside the plugin if it has none. The
-file system can't make folders: the user makes the home folder.
+`cvsd.h` covers the card and its FAT or exFAT file system, reading
+files, and writing a file in place. `examples/sd-card` lists a folder and
+keeps a save file, and `examples/open-file` reads the file the menu
+started the plugin with. A plugin made by `tools/new-plugin.py` keeps its
+save in its home folder (`HOME`), or in `/PLUGINS` next to the plugin if
+it has no home folder. The file system can't make folders, so the user
+needs to make the home folder.
 
 ## What it costs
 
-A plugin runs from the cart's RAM, about 500 KB, so its code counts as
-RAM too. Over a plugin with no features (GCC 9.2.1):
+A plugin runs from the cart's RAM, which is about 500 KB, so its code
+uses RAM too. Here's what each feature adds to a plugin with no features
+(GCC 9.2.1):
 
 | Features | Code | Data |
 |---|---|---|
@@ -200,16 +209,15 @@ RAM too. Over a plugin with no features (GCC 9.2.1):
 | `PADS MIDI_OUT` | 53.8K | 12.0K |
 | all five USB features | 60.8K | 13.2K |
 
-Most of it is the USB host, which the host features share: each one
-after the first adds a few K. `PSRAM` and `CARD` cost what the plugin
-calls.
+Most of that is the USB host code, which the host features share, so
+each one after the first adds only a few KB. `PSRAM` and `CARD` only
+cost what your plugin calls.
 
 ## Trying it on a Mac
 
-`test/run.sh` builds the plugin's own code for the Mac and runs it against
-a model of the console and the USB port. It reads `cvcart_features()`
-from `CMakeLists.txt`, and its script can plug things in
-(docs/testing.md):
+`test/run.sh` builds your plugin's code for the Mac and runs it against a
+model of the console and the USB port. It reads `cvcart_features()` from
+`CMakeLists.txt`, and its script can plug in devices (docs/testing.md):
 
 | Script | What happens |
 |---|---|
@@ -217,27 +225,29 @@ from `CMakeLists.txt`, and its script can plug things in
 | `pad2=east`, `lstick2=...`, `rstick2=...` | a second game pad |
 | `padkind=hid`, `pad2kind=hid` | a pad that isn't a Switch Pro Controller (`switch` is one) |
 | `keydown=04`, `keyup=04`, `mods=02` | a keyboard, by USB code (`E0` to `E7` are the modifiers) |
-| `mouse=40,20,1,1` | a mouse: dx, dy, buttons, wheel |
-| `midiin=90,3C,64` | MIDI that comes in |
-| `computer=0`, `computer=ask` | no computer on the port, or one that asks its user |
+| `mouse=40,20,1,1` | a mouse, with dx, dy, buttons and wheel |
+| `midiin=90,3C,64` | MIDI coming in |
+| `computer=0`, `computer=ask` | no computer on the port, or one that asks its user first |
 
-The simulator (docs/simulator.md) reads `cvcart_features()` too. It
+The simulator (docs/simulator.md) reads `cvcart_features()` too, and
 gives the plugin your computer's game pads, keyboard, mouse and MIDI
 ports.
 
-What the model can't check is the cart: real devices, a real hub, a real
-computer. Try those on a console.
+The model can't check real devices, a real hub or a real computer, so
+try those on a console.
 
 ## Not here yet
 
-- Keyboards and mice in their report protocol: they are read in their
-  simpler boot protocol, so a keyboard's media keys and a mouse's extra
-  buttons aren't there. A keyboard layout other than US: `usage` is
-  right, `ascii` is the US key's.
+- Keyboards and mice in report protocol. They're read in the simpler
+  boot protocol, so a keyboard's media keys and a mouse's extra buttons
+  don't come through.
+- Keyboard layouts other than US. `usage` is right, but `ascii` is the
+  character of the US key.
 - MIDI on more than one cable (port) of a device, or from more than one
   MIDI device at a time.
-- The port changing its mind after the start (a computer plugged in
-  later).
+- Switching the port between host and device after the start, for
+  example when a computer is plugged in later.
 - A DualShock 4's right stick. A pad's right stick is read from its Rx
-  and Ry when it has them, else its Z and Rz. A DualShock 4 has both, with
-  its triggers on Rx and Ry, so its right stick reads its triggers.
+  and Ry when it has them, and from Z and Rz otherwise. A DualShock 4 has
+  both, with its triggers on Rx and Ry, so its right stick reads as its
+  triggers.
