@@ -132,8 +132,8 @@ console to itself.
 
 - Writing to the cart's flash. The menu, the other plugins and the cart's
   settings are stored there. A broken plugin can't brick the cart,
-  because its USB recovery is in ROM, but it could leave the owner having
-  to reinstall the menu.
+  because its USB recovery is in ROM, but it could mean reinstalling the
+  menu.
 - Making the console wait, for example with `sleep_ms()` in the loop or
   by waiting for USB. The task function needs to run often to keep RESET
   working.
