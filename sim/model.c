@@ -85,11 +85,11 @@ void model_init(void) {
     out_dir = opt.out;
     end_us = opt.end_us < 0 ? UINT64_MAX : (uint64_t)opt.end_us;
     snprintf(path, sizeof path, "%s/log.txt", out_dir);
-    logf = fopen(path, "w");
+    log_file = fopen(path, "w");
     if (opt.lists) snprintf(path, sizeof path, "%s/lists.bin", out_dir);
     else snprintf(path, sizeof path, "%s", NULL_DEVICE);
     listf = fopen(path, "wb");
-    if (!logf || !listf) { perror(out_dir); exit(2); }
+    if (!log_file || !listf) { perror(out_dir); exit(2); }
     if (opt.script) script_at = script = strdup(opt.script);
     if (opt.no_psram) {
         static char no_psram[] = "PC_NO_PSRAM=1";

@@ -92,16 +92,16 @@ int plugin_main(void);
 static uint64_t now_us = 1000;
 static uint64_t end_us = 3000000;
 static const char *out_dir = ".";
-static FILE *logf, *listf;
+static FILE *log_file, *listf;
 static int fails;
 static void console_step(void);
 
 static void logline(const char *fmt, ...) {
     va_list ap;
     va_start(ap, fmt);
-    fprintf(logf, "%6u ", (unsigned)(now_us / 1000));
-    vfprintf(logf, fmt, ap);
-    fputc('\n', logf);
+    fprintf(log_file, "%6u ", (unsigned)(now_us / 1000));
+    vfprintf(log_file, fmt, ap);
+    fputc('\n', log_file);
     va_end(ap);
 }
 
@@ -113,9 +113,9 @@ static void fail(const char *fmt, ...) {
     printf("\n");
     va_end(ap);
     va_start(ap, fmt);
-    fprintf(logf, "%6u FAIL ", (unsigned)(now_us / 1000));
-    vfprintf(logf, fmt, ap);
-    fputc('\n', logf);
+    fprintf(log_file, "%6u FAIL ", (unsigned)(now_us / 1000));
+    vfprintf(log_file, fmt, ap);
+    fputc('\n', log_file);
     va_end(ap);
     fails++;
     SIM_FAIL();
@@ -779,7 +779,7 @@ static void finish(void) {
                      f_worst_vb, VBLANK_T, f_worst_all, FRAME_T, f_psg_bytes);
     if (midi_bytes) printf(", %u MIDI bytes", midi_bytes);
     printf(", note \"%s\"%s\n", note, fails ? " -- FAILED" : "");
-    fclose(logf);
+    fclose(log_file);
     fclose(listf);
     SIM_END();
     exit(fails ? 1 : 0);
@@ -801,10 +801,10 @@ int main(void) {
     if (getenv("PC_OUT")) out_dir = getenv("PC_OUT");
     if (getenv("PC_END")) end_us = (uint32_t)atoi(getenv("PC_END")) * 1000u;
     snprintf(path, sizeof path, "%s/log.txt", out_dir);
-    logf = fopen(path, "w");
+    log_file = fopen(path, "w");
     snprintf(path, sizeof path, "%s/lists.bin", out_dir);
     listf = fopen(path, "wb");
-    if (!logf || !listf) { perror(out_dir); return 2; }
+    if (!log_file || !listf) { perror(out_dir); return 2; }
     if (getenv("PC_SCRIPT")) script_at = script = strdup(getenv("PC_SCRIPT"));
     if (getenv("PC_CARD") && (card_fd = open(getenv("PC_CARD"), O_RDWR)) < 0) { perror(getenv("PC_CARD")); return 2; }
     if (!getenv("PC_NO_LAUNCH")) launch(getenv("PC_ID") ? getenv("PC_ID") : "test.plugin", getenv("PC_OPEN"));
