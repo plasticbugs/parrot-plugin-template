@@ -1,7 +1,7 @@
 # Icons
 
 A plugin has two icons. Each is 8x8 pixels with one bit per pixel, so a
-pixel is either on or off. The menu picks the color.
+pixel is either on or off. The menu sets the color.
 
 | Icon | CMake | Where the menu shows it | Color |
 |---|---|---|---|
