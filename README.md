@@ -83,6 +83,12 @@ runs scripts from the card and has an editor for writing them on the
 console, and a script can be built into a plugin of its own
 (docs/lua.md).
 
+If you use Claude Code, open this folder in it. The kit comes with a
+skill that knows the SDK, the simulator and the release steps
+(`.claude/skills/parrot-cart-plugin`), and Claude uses it when you ask
+for help with your plugin. To use it in a project that isn't a copy of
+this kit, copy that folder into `~/.claude/skills/`.
+
 More help is in these docs:
 
 - docs/getting-started.md: installing the tools, building, and using

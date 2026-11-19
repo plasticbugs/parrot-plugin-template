@@ -1199,7 +1199,7 @@ def sim_test_block(p):
 
 
 # ---- writing it --------------------------------------------------------------------------
-SKIP = {".git", "build", "__pycache__", ".DS_Store"}
+SKIP = {".git", "build", "__pycache__", ".DS_Store", "settings.local.json", "CLAUDE.local.md"}   # and not your own Claude settings
 
 
 def copy_kit(dest, examples):
