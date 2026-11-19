@@ -89,8 +89,10 @@ static size_t script_len;
 static bool stop_request;
 static uint32_t star_us;                // since when * has been held (0: it isn't)
 static cvkey_t keyq[32];                // the USB keyboard's keys, waiting
+#if CVLUA_EDITOR
 static char *edit_mem;                  // the editor's text
 static size_t edit_size;
+#endif
 static uint8_t key_in, key_out;
 static lua_State *L;
 static heap_t sram, psram;
