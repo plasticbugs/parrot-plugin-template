@@ -152,10 +152,13 @@ won't forgive. Each one has a reason.
 - **Start the console side first.** `cvk_start()` (screen kernel) or
   `cvf_start()` (frame kernel) at the top of `main()`. Until then the
   console sits parked, waiting for a cartridge.
-- **Call the task function on every pass**, `cvk_task()` or `cvf_task()`,
-  and keep each pass short. It watches the console's power and RESET and
-  takes the cart back to the menu. A loop that waits (`sleep_ms`, polling
-  USB, waiting on a flag) breaks RESET. One long step at the start, like
+- **Call the task function on every pass of every loop**, `cvk_task()`
+  or `cvf_task()`, and keep each pass short. It turns the cart's data bus
+  on once it sees the console, watches power and RESET, and takes the cart
+  back to the menu. A loop without it (a title screen waiting for fire,
+  `sleep_ms`, waiting on a flag) shows black or garbage on a real console
+  and RESET does nothing. The simulator fails a plugin that polls the
+  console for 100 ms without it. One long step at the start, like
   starting the SD card (up to 1.5 s), is fine.
 - **Leave core 1 alone.** Don't call `multicore_launch_core1`, and don't
   disable interrupts for long.
@@ -270,7 +273,7 @@ GPL or LGPL code needs a source link to the exact tag released.
 
 ## What only a console shows
 
-The models are perfect and the console isn't. Before a release, ask the
+The models don't catch everything a console does. Before a release, ask the
 user to try it on a real ColecoVision: start it from the Plugins page
 (and by opening a file, if it opens any), press RESET and read the note,
 switch the console off and on while it runs, try their USB devices

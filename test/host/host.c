@@ -94,6 +94,8 @@ static uint64_t end_us = 3000000;
 static const char *out_dir = ".";
 static FILE *log_file, *listf;
 static int fails;
+static uint64_t t_task;        // the last cvk_task()/cvf_task(): see polled()
+static bool task_failed;
 static void console_step(void);
 
 static void logline(const char *fmt, ...) {
@@ -295,6 +297,7 @@ static void k_frame(void) {
 void cvk_start(const cvk_config_t *c) {
     (void)c;
     k_on = true;
+    t_task = now_us;
     vdp_t v;
     vdp_init(&v);
     memcpy(k_vram, v.vram, VRAM_SIZE);
@@ -303,12 +306,27 @@ void cvk_start(const cvk_config_t *c) {
 }
 
 const uint8_t cvk_silence[10] = {0x80, 0x00, 0x9F, 0xA0, 0x00, 0xBF, 0xC0, 0x00, 0xDF, 0xFF};
-void cvk_task(uint32_t t) { (void)t; console_step(); }
+// On the cart cvk_task()/cvf_task() turn the data bus on once the console is
+// seen, and take RESET back to the menu. Here the console runs from any SDK
+// call, so a loop that polls the console without them (a title screen
+// waiting for fire) works on the Mac and shows black or garbage on a
+// console. One blocking step, like starting the card, doesn't poll and is
+// fine; polling for more than 100 ms without the task call is the bug.
+static void polled(const char *task) {
+    if (task_failed || now_us - t_task <= 100000) return;
+    task_failed = true;
+    fail("the plugin polled the console for %u ms without calling %s: on a real console the screen stays "
+         "black or garbage and RESET can't get back to the menu. Call it on every pass of every loop, title "
+         "screens and waits too", (unsigned)((now_us - t_task) / 1000), task);
+}
+
+void cvk_task(uint32_t t) { (void)t; t_task = now_us; console_step(); }
 void cvk_note(const char *s) { memset(note, 0, sizeof note); if (s) strncpy(note, s, 32); logline("note \"%s\"", note); }
 bool cvk_console_on(void) { return true; }
 
 bool cvk_report(uint32_t t, int *kind, uint8_t *bits) {
     (void)t;
+    polled("cvk_task()");
     console_step();
     if (!k_rep_n) return false;
     *kind = k_rep[0].kind;
@@ -422,12 +440,12 @@ static void f_frame(void) {
 
 void cvd_start(void) {}
 void cvd_stage(uint32_t n) { (void)n; }
-void cvf_start(const cvf_config_t *c) { (void)c; f_on = true; f_vram[0x1B00] = 0xD0; }
-void cvf_task(uint32_t t) { (void)t; console_step(); }
+void cvf_start(const cvf_config_t *c) { (void)c; f_on = true; t_task = now_us; f_vram[0x1B00] = 0xD0; }
+void cvf_task(uint32_t t) { (void)t; t_task = now_us; console_step(); }
 void cvf_note(const char *s) { cvk_note(s); }
 void cvf_note_now(void) {}
 void cvf_on_exit(void (*fn)(void)) { f_exit = fn; }
-uint32_t cvf_frames(void) { console_step(); return f_frames; }
+uint32_t cvf_frames(void) { polled("cvf_task()"); console_step(); return f_frames; }
 bool cvf_waiting(void) { return f_list.waiting; }
 bool cvf_console_on(void) { return true; }
 
