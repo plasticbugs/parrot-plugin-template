@@ -77,8 +77,10 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
     --screen text --features pads,saves --home /SWEEPER --here
 ```
 
-- `--here` turns this copy of the kit into the plugin. `--out DIR` makes a
-  new folder instead.
+- `--here` turns this copy of the kit into the plugin, the way the kit's
+  README does it. It removes Hello and `examples/` (`--examples` keeps
+  them), so say so. `--out DIR` makes a new folder and leaves the kit as
+  it is.
 - `--screen text` or `frames`. `--features` takes `pads, keyboard, mouse,
   midi-in, midi-out, psram, saves` (or `all`, `none`).
   `--opens ".swp .lvl"` makes the menu open those files with the plugin.
