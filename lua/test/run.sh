@@ -52,7 +52,7 @@ run() {
     rm -rf "$o"; mkdir -p "$o"
     printf '%s\n' "$name"
     if ! "$kit/test/host/build.sh" "$dir" "$o/run" 2>"$o/build.log"; then
-        echo "  the build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1
+        echo "  the build FAILED:"; { grep -E 'error|undefined' "$o/build.log" || head -20 "$o/build.log"; } | sed 's/^/    /' | head -20; status=1
         unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END PC_NO_LAUNCH; return 0
     fi
     if grep -v '^ld: warning' "$o/build.log" | grep -q 'warning:'; then fail "warnings:"; grep 'warning:' "$o/build.log" | sed 's/^/    /' | head; fi
