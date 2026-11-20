@@ -89,9 +89,10 @@ the file in its launch block (`examples/open-file`).
 - When two plugins open the same extension, the menu shows an Open with
   list so you can choose. Please only list the types your plugin really
   reads.
-- The menu opens `.rom`, `.col`, `.bin` and movies itself, and its Game
-  Boy mode opens `.gb` and `.gbc`. A plugin can also list `.gb`, and the
-  menu then offers it as a choice.
+- The menu opens ColecoVision games and movies itself: `.rom` and `.col`
+  files that start with the ColecoVision header (`$AA55` or `$55AA`).
+  Every other type, `.gb` and `.gbc` too, opens with whichever plugins
+  list it.
 - `FILE_ICON` is the icon those files get in the menu (`docs/icons.md`).
 - A plugin with no extensions is an app, and you start it from the
   Plugins page.
