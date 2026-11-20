@@ -35,13 +35,20 @@ wanted() { [ -z "$ONLY" ] && return 0; case " $ONLY " in *" $1 "*) return 0 ;; e
 fail() { echo "  FAIL: $*"; status=1; }
 compared=0
 
-# run NAME DIR [simulator options] -- the plugin in DIR, headless; o= its output
+# run NAME DIR [simulator options] -- the plugin in DIR, headless; o= its
+# output, $out/NAME. A run clears that folder only if a run made it (it holds
+# .sim-test, or run.txt from an older sim/test.sh), so a card folder with the
+# test's name is left alone and the test fails.
 run() {
     name=$1; dir=$2; shift 2
     o=$out/$name
-    rm -rf "$o"; mkdir -p "$o"
     echo "$name"
     skip=
+    if [ -e "$o" ] && [ ! -f "$o/.sim-test" ] && [ ! -f "$o/run.txt" ] && [ -n "$(ls -A "$o" 2>/dev/null)" ]; then
+        fail "$o isn't a test's output, so it stays: give the test or that folder another name"
+        skip=1; return 0
+    fi
+    rm -rf "$o"; mkdir -p "$o"; : > "$o/.sim-test"
     [ -d "$dir" ] || { echo "  (not here: $dir)"; skip=1; return 0; }
     if "$kit/sim/run.sh" "$dir" --headless --out "$o" "$@" >"$o/run.txt" 2>&1; then :; else
         fail "the simulator stopped with an error:"; sed 's/^/    /' "$o/run.txt" | tail -15
