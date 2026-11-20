@@ -14,7 +14,13 @@
 # hdiutil, macOS's own fsck and a mount afterwards.
 #
 # Output in $TMPDIR/parrotcart-test (pictures: */screen.png).
-# NO_MAME=1 skips step 2; MAME_ROMPATH=dir is where coleco.zip is.
+# NO_MAME=1 skips step 2. Step 2 needs mame, sjasmplus and the ColecoVision
+# BIOS, coleco.zip (MAME's name for it), which the kit doesn't have. Put
+# coleco.zip in a folder of your own and name that folder in MAME_ROMPATH:
+#   MAME_ROMPATH=$HOME/mame/roms test/run.sh
+# or put it where MAME already looks: the rompath in its mame.ini, or with
+# no mame.ini, a roms folder in the folder you run this from. Without it,
+# step 2 is skipped and the script says why.
 # What this can't check is the cart itself: USB, the real card, the PSRAM
 # chip, timing on the bus. docs/testing.md has the console test plan.
 set -e
@@ -26,6 +32,15 @@ have_mame=1
 [ -n "$NO_MAME" ] && have_mame=0
 command -v mame >/dev/null 2>&1 && command -v sjasmplus >/dev/null 2>&1 || have_mame=0
 [ $have_mame = 1 ] || echo "(no MAME step: NO_MAME is set, or mame or sjasmplus isn't installed)"
+# is the BIOS where MAME looks? (asked headless, as tools/mame-replay.sh runs MAME)
+if [ $have_mame = 1 ] && ! SDL_VIDEODRIVER=dummy mame -verifyroms coleco ${MAME_ROMPATH:+-rompath "$MAME_ROMPATH"} \
+        -video none -videodriver dummy -window -nomaximize -sound none \
+        -nothrottle -skip_gameinfo -seconds_to_run 10 >/dev/null 2>&1; then
+    have_mame=0
+    echo "(no MAME step: MAME can't find the ColecoVision BIOS, coleco.zip, which isn't in the kit."
+    echo " Put it in a folder and run MAME_ROMPATH=/path/to/that/folder test/run.sh, or put it in"
+    echo " MAME's own rompath. docs/testing.md has more.)"
+fi
 
 # run NAME DIR -- with PC_* in the environment; then the log must match each
 # remaining argument (a grep -E pattern). (sh keeps a function's PC_*=...

@@ -29,12 +29,13 @@ else
     cart=$out/mame/mhkernel.bin
 fi
 rm -f "$out/mame/snap.png"
+# (if MAME stops, as it does without the BIOS, the check after it says why)
 PC_LISTS=$lists SDL_VIDEODRIVER=dummy mame coleco ${MAME_ROMPATH:+-rompath "$MAME_ROMPATH"} -cart "$cart" \
     -video none -videodriver dummy -window -nomaximize -sound none \
     -nothrottle -frameskip 0 -skip_gameinfo -seconds_to_run "${3:-60}" \
     -snapshot_directory "$out/mame" -snapname snap \
     -cfg_directory "$out/mame/cfg" -nvram_directory "$out/mame/nvram" \
-    -autoboot_script "$kit/tools/mame/replay.lua" | grep '^replay:'
-[ -f "$out/mame/snap.png" ] || { echo "mame-replay: MAME took no snapshot (is the BIOS on MAME_ROMPATH?)" >&2; exit 1; }
+    -autoboot_script "$kit/tools/mame/replay.lua" | grep '^replay:' || true
+[ -f "$out/mame/snap.png" ] || { echo "mame-replay: MAME took no snapshot. Is the ColecoVision BIOS, coleco.zip, in the folder MAME_ROMPATH names, or in MAME's own rompath?" >&2; exit 1; }
 cp "$out/mame/snap.png" "$out/mame.png"
 python3 -I "$kit/tools/png256.py" crop "$out/mame.png" "$out/mame-256x192.png"

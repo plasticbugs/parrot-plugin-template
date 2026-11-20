@@ -73,7 +73,7 @@ else
 fi
 
 if command -v mame >/dev/null 2>&1; then
-    say mame ok "for test/run.sh's check against the real kernel (needs the ColecoVision BIOS where MAME looks)"
+    say mame ok "for test/run.sh's check against the real kernel (needs the ColecoVision BIOS, coleco.zip, where MAME finds it: docs/testing.md)"
 else
     say mame missing "optional: test/run.sh skips that step with NO_MAME=1"
 fi

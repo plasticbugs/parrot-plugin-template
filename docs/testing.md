@@ -25,6 +25,20 @@ MAME's ColecoVision (`tools/mame-replay.sh`, headless). MAME's picture
 has to match the model's pixel for pixel, and for the frame kernel, no
 list can make a frame start late.
 
+That step needs `mame`, `sjasmplus` and the ColecoVision BIOS. MAME
+calls the BIOS `coleco.zip`, and the kit doesn't include it, so bring
+your own. Put it in a folder outside the plugin's repository and name
+that folder in `MAME_ROMPATH`:
+
+```sh
+MAME_ROMPATH=$HOME/mame/roms test/run.sh
+```
+
+You can also put it where MAME already looks: the `rompath` in its
+`mame.ini`, or, with no `mame.ini`, a `roms` folder in the folder you run
+the test from. If MAME can't find it, `test/run.sh` says so and skips the
+MAME step, as `NO_MAME=1` does.
+
 To test your plugin this way, add a block for it to `test/run.sh` by
 copying the `hello` one. A plugin made by `tools/new-plugin.py` already
 has a block. You can also run it by hand. The script's events are listed
