@@ -291,4 +291,6 @@ the full list.
 For an emulator, a game engine, or other code that wasn't written for
 the cart, read `references/porting.md` first. It covers the frame kernel's
 budget, turning another machine's picture and sound into the
-ColecoVision's, memory, speed, and what the published plugins did.
+ColecoVision's, memory, speed, and what the published plugins did. A
+picture taller than 192 lines can often be scaled by 3/4 to fit whole,
+which is usually better than a view the user has to move around.

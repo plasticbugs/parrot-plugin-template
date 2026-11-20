@@ -56,9 +56,19 @@ picture.
   picture costs 16 bytes for each new cell plus the names that change.
   `nescv.c` does this with double-buffered name tables, so a picture is
   never shown half drawn.
-- **Height**: games draw 224 or 240 lines and the TV shows 192. Offer the
-  user a view they can move (keypad keys) or a squeezed picture, and pick
-  a sensible start.
+- **Height**: games draw 224 to 288 lines and the TV shows 192. Scaling
+  the whole picture by 3/4 often fits it with nothing cut off. Of each 4
+  lines, keep the 1st and the 4th and turn the middle two into one. Where
+  one of those two differs from the lines on both sides of it, keep that
+  one, so a stroke 1 pixel wide survives. Do the same with the columns. A
+  240x256 picture becomes 180x192, with black at the sides. If it's still
+  too tall, scale only the play area and move the score and lives into
+  the side margins. A scaled picture no longer lines up with 8x8 tiles,
+  so send it as a bitmap: keep a copy of the console's pattern and colour
+  tables and send the bytes that change. A view the user moves with
+  keypad keys is the other way, for games where fine detail matters more
+  than seeing the whole screen, such as ones full of text. Pick a
+  sensible start for it.
 - **Sprites**: the TMS9918's 32 sprites, 4 to a line, are useful for a
   mouse pointer or a few objects, not for another machine's 64.
 - **Model video RAM.** Keep a copy of what the console holds, send only
