@@ -107,11 +107,29 @@ def check_cmake(root):
             check_icon(os.path.join(root, f[k]), k)
     if "ICON" not in f:
         warn("no ICON: the menu shows its plug icon (docs/icons.md)")
+    check_opens(f.get("OPENS", "").split())
     if "OPENS" in f and "FILE_ICON" not in f:
         warn("OPENS without FILE_ICON: its files get the plain file icon")
     if "README" not in f:
         warn("no README in cvcart_plugin(): the cart's details page will have no text")
     return f, target
+
+
+def check_opens(exts):
+    """Any extension the cart can take is fine, familiar or not (.mx1, .lvl):
+    up to 8, each a dot and 1 to 7 letters or digits, as the SDK's mkcvp.py
+    builds them"""
+    if not exts:
+        return
+    bad = [e for e in exts if not re.fullmatch(r"\.[A-Za-z0-9]{1,7}", e)]
+    if bad:
+        fail(f"OPENS {' '.join(bad)}: each is a dot and 1 to 7 letters or digits, like .nes")
+    elif len(exts) > 8:
+        fail(f"OPENS has {len(exts)} extensions: 8 at most")
+    elif len({e.lower() for e in exts}) < len(exts):
+        warn(f"OPENS {' '.join(exts)} lists one twice (case doesn't count)")
+    else:
+        ok(f"OPENS {' '.join(exts)}")
 
 
 def check_icon(path, what):
@@ -304,10 +322,15 @@ def check_cvp(path, f):
         return
     hdr, api, size = struct.unpack_from("<III", h, 8)
     pid, name, ver = cstr(h[52:84]), cstr(h[84:116]), cstr(h[116:132])
+    exts = [e for e in (cstr(h[196 + 8 * i:204 + 8 * i]) for i in range(8)) if e]
     if f:
         for what, got, want in (("ID", pid, f.get("ID")), ("NAME", name, f.get("NAME")), ("VERSION", ver, f.get("VERSION"))):
             if want is not None and got != want:
                 fail(f"{os.path.basename(path)}: {what} {got!r}, but CMakeLists.txt says {want!r}. Build it again")
+        want = [e.lower() for e in f.get("OPENS", "").split()]
+        if sorted(exts) != sorted(want):
+            fail(f"{os.path.basename(path)}: OPENS {' '.join(exts) or 'nothing'}, but CMakeLists.txt says "
+                 f"{' '.join(want) or 'nothing'}. Build it again")
     if size > 2093056:
         fail(f"{os.path.basename(path)}: image {size} bytes, over the 2,093,056 a plugin can be")
     elif size > 1044480:
