@@ -46,10 +46,11 @@ To start:
    `build/HELLO.CVP`.
 3. Copy the `.CVP` into the `/PLUGINS` folder of the cart's SD card. It
    shows up in the cart's menu under Plugins.
-4. Run `tools/new-plugin.py`. It asks for the plugin's name, your name
-   and the features you want (game pads, a keyboard, a mouse, MIDI in
-   and out, the PSRAM, saves). Then it writes a plugin that builds, with
-   each feature working on the TV (docs/features.md). To do it by hand
+4. Run `tools/new-plugin.py`. It asks for the plugin's name, your name,
+   the features you want (game pads, a keyboard, a mouse, MIDI in and
+   out, the PSRAM, saves) and the file types it opens. Then it writes a
+   plugin that builds, with each feature working on the TV
+   (docs/features.md). To do it by hand
    instead, change the ID, the name and the developer in
    `CMakeLists.txt` to yours (docs/plugin-rules.md), and draw an icon
    (docs/icons.md).

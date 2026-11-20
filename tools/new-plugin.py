@@ -241,7 +241,10 @@ class Plugin:
 
     @property
     def words(self):
-        return [w for k, w, _ in FEATURES if k in self.features]
+        words = [w for k, w, _ in FEATURES if k in self.features]
+        if self.opens and "CARD" not in words:
+            words.append("CARD")                                # the file it opens is on the card
+        return words
 
     def tests(self):
         names = [self.test]
@@ -249,10 +252,12 @@ class Plugin:
             names.append(self.test + "-usb")
         if self.has("saves"):
             names.append(self.test + "-card")
+        if self.opens:
+            names.append(self.test + "-open")
         return names
 
     def ci_tests(self):
-        return [t for t in self.tests() if not t.endswith("-card")]       # (the card's test needs a Mac's hdiutil)
+        return [t for t in self.tests() if not t.endswith(("-card", "-open"))]   # (the card's tests need a Mac's hdiutil)
 
 
 def c_str(s):
@@ -334,7 +339,7 @@ MAIN_C = r"""@HEADER@
 //@if psram
 #include "cvpsram.h"            // the 8 MB PSRAM
 //@end
-//@if saves
+//@if saves|opens
 #include "cvsd.h"               // the card: cvsd_*, and fsro.h's files and folders
 //@end
 
@@ -649,6 +654,53 @@ static void save_start(void) {
     else say(ROW_SAVE, C_WHITE, "SAVE: RUN %lu, %s", (unsigned long)save.runs, SAVE_FILE);
 }
 //@end
+//@if opens
+
+// ---- the file it was opened with --------------------------------------------------------
+// Pressing A on one of its files (@OPENS_TEXT@) in the card's folders starts
+// the plugin with that file: the menu puts its path, and where it is on the
+// card, in the launch block (cvlaunch.h). Started from the Plugins page,
+// the block has no path. Open the file with cvsd_open_launched(), not by
+// its path, because a character outside ASCII is ? in the path.
+static fs_t open_fs;            // (static: the file system's structures are big)
+static fs_file_t open_f;
+static uint8_t open_sector[512];
+
+// Once, at the start: the card's start takes a second or so, with the
+// screen standing still.
+static void open_start(void) {
+//@if text
+    const cvl_t *b = cvk_launch();                      // the launch block, or NULL
+//@end
+//@if frames
+    const cvl_t *b = cvf_launch();                      // the launch block, or NULL
+//@end
+    if (!b || !b->path[0]) {
+        say(ROW_FILE, C_GRAY, "FILE -");
+        say(ROW_FILE_SIZE, C_GRAY, "  PICK ONE IN THE MENU");
+        return;
+    }
+    const char *slash = strrchr(b->path, '/');
+    const char *name = slash ? slash + 1 : b->path;
+    say(ROW_FILE, C_WHITE, "FILE %s", name);
+    static char note[33];
+    const int r = cvsd_open_launched(&open_fs, b, false, &open_f);    // false: it won't be written to
+    if (r != FS_OK) {
+        say(ROW_FILE_SIZE, C_LRED, "  %s", r == FS_EIO ? "THE CARD DIDN'T START" : "IT WON'T OPEN");
+        snprintf(note, sizeof note, "Can't open %.21s", name);
+        leave_note(note);
+        return;
+    }
+    // YOUR CODE: read the file. Sector k of it, 512 bytes, is at
+    // fs_lba(&open_fs, k) on the card (0 past its end). Here the first one
+    // is read. For a big file, read a few sectors a pass from the loop, so
+    // the loop keeps turning (examples/open-file).
+    const bool read = open_f.size == 0 || cvsd_read(fs_lba(&open_fs, 0), open_sector);
+    say(ROW_FILE_SIZE, read ? C_WHITE : C_LRED, "  %lu BYTES%s", (unsigned long)open_f.size, read ? "" : ", A READ FAILED");
+    snprintf(note, sizeof note, "Opened %.25s", name);
+    leave_note(note);
+}
+//@end
 
 @STEP_HEADER@
 static void step(void) {
@@ -811,6 +863,9 @@ int main(void) {
 //@if saves
     save_start();
 //@end
+//@if opens
+    open_start();
+//@end
 //@if usb
     cvusb_start();              // after the kernel's start: @USB_START@
 //@end
@@ -905,6 +960,8 @@ def rows(p):
     mem = (["PSRAM"] if p.has("psram") else []) + (["SAVE"] if p.has("saves") else [])
     if mem:
         groups.append(mem)
+    if p.opens:
+        groups.append(["FILE", "FILE_SIZE"])
     used = sum(len(g) for g in groups)
     gaps = 21 - used                # rows 1-21 (a TV cuts the top and bottom ones), 22 RESET's
     out, row = [], 1
@@ -933,13 +990,18 @@ def english(items):
 
 def main_c(p):
     flags = set(p.features) | {p.screen}
+    if p.opens:
+        flags.add("opens")
     if p.has(*USB_FEATURES):
         flags.add("usb")
     if p.has(*HOST_FEATURES) and p.has("midi-out"):
         flags.add("ask")
     phrases = {"pads": "USB game pads", "keyboard": "a USB keyboard", "mouse": "a USB mouse", "midi-in": "MIDI in",
                "midi-out": "MIDI out", "psram": "the PSRAM", "saves": "a save file on the card"}
-    feats = english([phrases[k] for k in p.features]) if p.features else "no features: the console's controller and the screen"
+    things = [phrases[k] for k in p.features]
+    if p.opens:
+        things.append("the file the menu opens it with (" + " ".join(p.opens) + ")")
+    feats = english(things) if things else "no features: the console's controller and the screen"
     usb = [{"PADS": "pads", "KEYBOARD": "keyboard", "MOUSE": "mouse", "MIDI_IN": "MIDI in", "MIDI_OUT": "MIDI out"}[w]
            for w in p.words if w not in ("PSRAM", "CARD")]
     host, dev = p.has(*HOST_FEATURES), p.has("midi-out")
@@ -972,6 +1034,7 @@ def main_c(p):
         "SAVE_MAGIC": p.save_magic,
         "STEP_HEADER": ("// ---- the step: " + ("50 times a second " if p.screen == "text" else "every TV frame ")).ljust(92, "-"),
         "USB_START": start,
+        "OPENS_TEXT": " ".join(p.opens),
     }
     return render(MAIN_C, flags, values)
 
@@ -980,7 +1043,7 @@ def cmakelists(p):
     kernel = ("parrotcart_screen({t})           # text and pictures, drawn for you: the screen kernel"
               if p.screen == "text" else
               "parrotcart_frames({t})           # a whole picture every TV frame: the frame kernel").format(t=p.target)
-    feats = f"cvcart_features({p.target} {' '.join(p.words)})" if p.features else f"# cvcart_features({p.target} PADS ...)"
+    feats = f"cvcart_features({p.target} {' '.join(p.words)})" if p.words else f"# cvcart_features({p.target} PADS ...)"
     extra = []
     if p.home:
         extra.append(f"HOME {p.home}")
@@ -1007,7 +1070,8 @@ add_executable({p.target} src/main.c)
 #   PADS KEYBOARD MOUSE MIDI_IN   the USB port as a host, through a powered hub
 #   MIDI_OUT                      the USB port as a MIDI device, on a computer
 #   PSRAM                         the 8 MB PSRAM
-#   CARD                          the card: files and saves
+#   CARD                          the card: files and saves (a plugin with
+#                                 OPENS needs it to read its file)
 # To add one later, add its word here and its code to src/main.c.
 {feats}
 
@@ -1051,7 +1115,8 @@ def readme(p):
         else:
             needs.append(f"Saves go in `/PLUGINS/{p.save_file}`, next to the plugin.")
     if p.opens:
-        needs.append("It opens " + english([f"`{e}`" for e in p.opens]) + " files. Pick one in the menu to start it.")
+        needs.append("It opens " + english([f"`{e}`" for e in p.opens]) + " files from the card. Press A on one "
+                     "in the card's folders to start it with that file.")
     if p.home and not p.has("saves"):
         needs.append(f"Its files go in `{p.home}` on the card.")
     credits = [f"Parrot Cart plugin template and SDK, by the Parrot Cart contributors, MIT: <{TEMPLATE_URL}>"]
@@ -1150,6 +1215,9 @@ def plugin_tests(p):
     return tests
 
 
+OPEN_NOTE = r'note "Opened A first file\.txt"'       # what the plugin's -open test must leave
+
+
 def test_block(p):
     """test/run.sh's part for the plugin"""
     t = p.test
@@ -1168,6 +1236,13 @@ def test_block(p):
                 f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu'",
                 "    done",
                 f"    card_check fat32 \"MS-DOS FAT32\" 2 {shq(path)} {shq(p.save_magic)}",
+                "fi"]
+    if p.opens:
+        # (the models don't look at the extension: the card's text file will do)
+        out += [f"if wanted {t}-open; then",
+                "    card \"MS-DOS FAT32:MBRSPUD:fat32\"",
+                "    PC_CARD=$out/card-fat32.cdr PC_OPEN=\"/A first file.txt\" PC_END=2500 \\",
+                f"        run {t}-open \"$kit/src\" {shq(OPEN_NOTE)} 'back to the menu'",
                 "fi"]
     out.append("# ---- the examples ----")
     return "\n".join(out) + "\n"
@@ -1193,6 +1268,13 @@ def sim_test_block(p):
                 "        expect 'back to the menu'",
                 "    done",
                 f"    save_check \"$out/card\"{shq(path)} {shq(p.save_magic)} 2",
+                "fi"]
+    if p.opens:
+        out += [f"if wanted {t}-open; then",
+                '    tree "$out/card"',
+                f"    run {t}-open-folder \"$kit/src\" --card \"$out/card\" --open \"/A first file.txt\" --ms 2500",
+                f"    expect {shq(OPEN_NOTE)} 'back to the menu'",
+                f"    same_as {t}-open picture",
                 "fi"]
     out.append("# ---- the examples ----")
     return "\n".join(out) + "\n"
@@ -1323,7 +1405,7 @@ def interview(a):
     print()
     a.home = ask("A folder on the card for the plugin's files" + (" and saves" if "saves" in a.features else "") +
                  ", like /SWEEPER, or none", lambda s: "" if s.strip().lower() == "none" else check_home(s), a.home or "none")
-    a.opens = ask("File types it opens from the menu, like .swp .lvl, or none",
+    a.opens = ask("File types the menu opens with it (it reads them from the card), like .swp .lvl, or none",
                   lambda s: [] if s.strip().lower() == "none" else check_opens(s), " ".join(a.opens) if a.opens else "none")
     print("\nChoose an icon (8x8, docs/icons.md):")
     print("  " + "  ".join(f"{i} {k:8}" for i, k in enumerate(ICONS, 1)))
@@ -1349,7 +1431,8 @@ def interview(a):
                          one_of("y", "n"), "n") == "y"
     p = Plugin(a)
     print(f"\n{p.name} {p.version} by {p.by} ({p.id}): {p.screen} screen, "
-          f"features: {', '.join(p.features) or 'none'}, {p.license}, to {'this kit' if a.here else a.out}")
+          f"features: {', '.join(p.features) or 'none'}, " + (f"opens {' '.join(p.opens)}, " if p.opens else "") +
+          f"{p.license}, to {'this kit' if a.here else a.out}")
     if ask("Write the plugin? y/n", one_of("y", "n"), "y") != "y":
         raise SystemExit(1)
     return p
@@ -1376,7 +1459,9 @@ def main():
     ap.add_argument("--screen", default="text", help="text (the default) or frames")
     ap.add_argument("--features", default="", help="comma-separated (default: none)")
     ap.add_argument("--home", default="", help="the plugin's folder on the card, like /SWEEPER (default: none)")
-    ap.add_argument("--opens", default="", help="file types the menu opens with it, like '.swp .lvl' (default: none)")
+    ap.add_argument("--opens", default="",
+                    help="file types the menu opens with it, like '.swp .lvl'. It turns on CARD, and src/main.c "
+                         "opens the file and shows its name and size (default: none)")
     ap.add_argument("--icon", help="an icon's name, or a file (default: one that suits the features)")
     ap.add_argument("--license", default="MIT",
                     help="an SPDX ID for your code (default MIT). The full text is built in for " + ", ".join(LICENSES) +
@@ -1432,7 +1517,8 @@ def main():
 
     where = os.path.relpath(root)
     print(f"{p.name}: {where}")
-    print(f"  CMakeLists.txt   {p.id} {p.version}, {p.screen} screen, features: {' '.join(p.words) or 'none'}")
+    print(f"  CMakeLists.txt   {p.id} {p.version}, {p.screen} screen, features: {' '.join(p.words) or 'none'}" +
+          (f", opens {' '.join(p.opens)}" if p.opens else ""))
     print("  src/main.c       each feature on the TV, with YOUR CODE where your code goes")
     print(f"  README.md        controls, what it needs and credits (license {p.license})")
     print(f"  test/run.sh      tests for it: {' '.join(p.tests())} (and in sim/test.sh)")

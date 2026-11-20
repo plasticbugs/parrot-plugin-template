@@ -190,7 +190,9 @@ files, and writing a file in place. `examples/sd-card` lists a folder and
 keeps a save file, and `examples/open-file` reads the file the menu
 started the plugin with. A plugin made by `tools/new-plugin.py` keeps its
 save in its home folder (`HOME`), or in `/PLUGINS` next to the plugin if
-it has no home folder. The file system can't make folders, so the user
+it has no home folder. With `--opens .ext`, `tools/new-plugin.py` turns
+`CARD` on even without saves, and its `src/main.c` opens the file the
+menu started it with and shows the file's name and size. The file system can't make folders, so the user
 needs to make the home folder.
 
 ## What it costs

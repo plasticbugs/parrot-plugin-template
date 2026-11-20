@@ -84,6 +84,8 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
 - `--screen text` or `frames`. `--features` takes `pads, keyboard, mouse,
   midi-in, midi-out, psram, saves` (or `all`, `none`).
   `--opens ".swp .lvl"` makes the menu open those files with the plugin.
+  It turns on the card (`CARD`), and `src/main.c` opens the file the
+  plugin was started with and shows its name and size.
 - `--license` takes an SPDX ID (default MIT). An emulator core usually
   decides this, so check the core's license first.
 
