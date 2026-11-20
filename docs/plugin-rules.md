@@ -93,6 +93,11 @@ the file in its launch block (`examples/open-file`).
   files that start with the ColecoVision header (`$AA55` or `$55AA`).
   Every other type, `.gb` and `.gbc` too, opens with whichever plugins
   list it.
+- A plugin can list `.rom` too, because other machines' cartridges use it
+  (an MSX cartridge starts with `AB`). It gets the `.rom` files that don't
+  have the ColecoVision header. Menus from before November 19, 2026 hide
+  those files, so on an older cart people need to rename them to another
+  extension your plugin lists.
 - `FILE_ICON` is the icon those files get in the menu (`docs/icons.md`).
 - A plugin with no extensions is an app, and you start it from the
   Plugins page.
