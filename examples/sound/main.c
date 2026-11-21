@@ -3,7 +3,9 @@
 //
 // The plugin keeps the chip's 10 bytes -- tone low, tone high and volume
 // for voices 0-2, then the noise volume -- and hands them to cvk_sound()
-// whenever they change. The console writes them to the chip within a
+// whenever they change, and every 100 ms anyway: the console misreads a
+// byte from the cart now and then, and a sound register stays wrong until
+// it's written again. The console writes them to the chip within a
 // millisecond or two. They are the chip's own bytes, so "silence" is
 // cvk_silence, not zeros.
 //
@@ -81,7 +83,7 @@ int main(void) {
     memcpy(snd, cvk_silence, sizeof snd);
     cvk_note("Sound example");
 
-    uint32_t t_screen = 0, t_drum = 0;
+    uint32_t t_screen = 0, t_drum = 0, t_sound = 0;
     for (;;) {
         const uint32_t t = time_us_32();
         cvk_task(t);
@@ -109,14 +111,15 @@ int main(void) {
             t_drum = t;
         }
 
-        // ...as the chip's bytes, sent when they change
+        // ...as the chip's bytes, sent when they change and every 100 ms
         uint8_t next[10];
         memcpy(next, cvk_silence, sizeof next);
         if (note >= 0) psg_tone(next, 0, SCALE[note] << octave >> 1, 2);
         psg_noise_volume(next, drum_att);
-        if (memcmp(next, snd, sizeof snd)) {
+        if (memcmp(next, snd, sizeof snd) || t - t_sound >= 100000) {
             memcpy(snd, next, sizeof snd);
             cvk_sound(snd);
+            t_sound = t;
         }
 
         if (t - t_screen >= 20000) {

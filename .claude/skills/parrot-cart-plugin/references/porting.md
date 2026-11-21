@@ -84,6 +84,18 @@ don't carry over. `nesapu.h` and the SMS plugin are examples. Send the
 bytes in the frame list (command 2), and expect a sound write to cost the
 Z80 about 29 cycles more than the chip's datasheet says.
 
+Write the whole chip in every list: each voice's tone and volume and the
+noise volume, including what hasn't changed and the volumes of voices
+you don't use. Now and then the console reads a byte from the cart
+wrong, and if that byte was a sound write, the register stays wrong
+until something writes it again. An arcade plugin that set its tones up
+once, and never wrote the voices it didn't use, got a low buzz under the
+game after one bad byte. It lasted until RESET. Ten bytes cost about 1%
+of a frame. If you play samples through the volume registers, set the
+tones' pitch again in every list as well. Leave the noise's kind and
+rate until they change, because writing that register restarts the
+noise.
+
 ## Memory and the build
 
 - Emulator cores usually call `malloc`: add `HEAP`, call

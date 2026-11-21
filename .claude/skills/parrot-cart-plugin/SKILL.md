@@ -213,10 +213,14 @@ won't forgive. Each one has a reason.
   differences yourself.
 - Sound is ten bytes, the chip's own: tone low, tone high and volume for
   voices 0 to 2, then the noise volume. Send them with `cvk_sound()`
-  when they change. All zeros is a tone, not silence; use `cvk_silence`.
-  `examples/sound/main.c` has `psg_tone()`, which turns a frequency into
-  those bytes (the lowest note is about 110 Hz). In the frame kernel,
-  sound bytes go in the list.
+  when they change, and again every few frames even when they don't.
+  The console misreads a byte from the cart now and then, and a sound
+  register stays wrong until it's written again, so a sound sent once
+  can turn into a drone that lasts until RESET. All zeros is a tone, not
+  silence; use `cvk_silence`. `examples/sound/main.c` has `psg_tone()`,
+  which turns a frequency into those bytes (the lowest note is about
+  110 Hz). In the frame kernel, sound bytes go in the list. Put the whole
+  chip in every list (`references/porting.md`, "The sound").
 
 `references/sdk-api.md` lists the SDK's calls by area. The headers in
 `sdk/firmware/revc/sdk/` are the full reference.
