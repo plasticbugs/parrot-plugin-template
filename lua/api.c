@@ -1042,11 +1042,17 @@ void api_tick(lua_State *L) {
 #endif
 }
 
+// The sound goes out when it changes, and every 6 ticks (0.1 s) anyway: the
+// console misreads a byte from the cart now and then, and a sound register
+// stays wrong until it's written again, so a sound sent once could drone
+// until RESET.
 void api_tick_end(void) {
+    static uint8_t snd_age;             // ticks since the sound last went out
     for (int ch = 0; ch < 4; ch++)
         if (snd_left[ch] && --snd_left[ch] == 0) voice_off(ch);
-    if (snd_dirty) {
+    if (snd_dirty || ++snd_age >= 6) {
         snd_dirty = false;
+        snd_age = 0;
         cvk_sound(snd);
     }
 }

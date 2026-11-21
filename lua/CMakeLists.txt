@@ -13,6 +13,6 @@ parrotcart_init()
 add_executable(lua)
 cvcart_features(lua PSRAM CARD PADS KEYBOARD MOUSE MIDI_IN)
 parrotcart_lua(lua)
-cvcart_plugin(lua ID parrotcart.lua NAME "Lua" VERSION 0.1.0 BY "Parrot Cart"
+cvcart_plugin(lua ID parrotcart.lua NAME "Lua" VERSION 0.1.1 BY "Parrot Cart"
               HOME /LUA OPENS .lua ICON icon.txt FILE_ICON file_icon.txt
               README README.md FILE LUA.CVP)
