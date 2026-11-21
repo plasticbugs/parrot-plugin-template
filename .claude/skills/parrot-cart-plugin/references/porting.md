@@ -96,6 +96,24 @@ tones' pitch again in every list as well. Leave the noise's kind and
 rate until they change, because writing that register restarts the
 noise.
 
+## Arcade games
+
+Every arcade plugin uses the same keys, so someone who knows one knows
+them all:
+
+| | ColecoVision controller | USB pad |
+|---|---|---|
+| coin | keypad * or # | - (minus) |
+| one-player start | keypad 1 | + (plus) |
+| two-player start | keypad 2 | |
+| back to the menu | RESET | |
+
+If the game also starts on a fire button, keep that. A one-player game
+leaves keypad 2 unused. Make a coin a pulse of about 6 frames from the
+press, however long the key is held, and need the key up for 3 frames
+before the next one. Some games ignore a coin switch held shut for long,
+and a key that bounces should still give one coin.
+
 ## Memory and the build
 
 - Emulator cores usually call `malloc`: add `HEAP`, call

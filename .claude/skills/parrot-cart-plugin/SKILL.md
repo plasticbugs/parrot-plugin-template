@@ -195,6 +195,9 @@ won't forgive. Each one has a reason.
   TinyUSB's `tuh_*` functions yourself.
 - **Leave a note** for the menu's bottom line when there's something to
   say: `cvk_note("Saved")`, 32 characters at most.
+- **Arcade games share their keys**: keypad * or # adds a coin, 1 and 2
+  start a one- or two-player game (`references/porting.md`, "Arcade
+  games").
 
 ## Pictures and sound
 
