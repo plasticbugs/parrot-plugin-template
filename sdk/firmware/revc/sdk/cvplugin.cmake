@@ -35,9 +35,15 @@
 #                                the plugin also needs cvkernel_use (the
 #                                canvas) and the KEYBOARD and CARD features
 #   cvcart_plugin(nesinfo ID parrotcart.nesinfo NAME "NES Info" VERSION 1.0.0
-#                 [BY "Parrot Cart"] [HOME /NES] [OPENS .nes ...] [USES usb-host ...]
+#                 [BY "Parrot Cart"] [HOME /NES] [OPENS .nes ...] [USES usb-host standalone ...]
 #                 [ICON icon.txt] [FILE_ICON icon.txt] [FILE NESINFO.CVP] [HEAP]
 #                 [README README.md])
+#
+# USES: what the plugin uses (usb-host, usb-device, psram; cvcart_features
+# adds these), and standalone: the plugin opens files (OPENS) but can also
+# start with none, an empty page or a demo of its own. The menu lists it
+# with the plugins that open no files, which always start on their own.
+# Without it, a plugin with OPENS starts only with one of its files.
 #
 # README: the plugin's README, which its details page on the cart shows a
 # page at a time. Write ordinary Markdown: cvreadme.py turns it into the

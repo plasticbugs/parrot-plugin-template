@@ -99,8 +99,15 @@ the file in its launch block (`examples/open-file`).
   those files, so on an older cart people need to rename them to another
   extension your plugin lists.
 - `FILE_ICON` is the icon those files get in the menu (`docs/icons.md`).
-- A plugin with no extensions is an app, and you start it from the
-  Plugins page.
+- A plugin with no extensions runs on its own. The menu lists it on
+  Home with the other apps (in Apps, or in the group of the folder it's
+  in, such as `/PLUGINS/GAMES`), and A starts it. An older menu starts
+  every plugin from its Plugins page instead.
+- A plugin with extensions starts only with one of its files, unless it
+  also has `USES standalone`. Then it is listed with the apps too and can
+  start with no file, so it needs something to show without one, such as
+  an empty page or a demo. In the Plugin Manager, A on a plugin that needs
+  a file opens its `HOME` folder.
 
 ## What it uses
 
@@ -108,7 +115,8 @@ The menu shows `USES usb-host usb-device psram` on the plugin's details
 page, and the plugins site shows it too, so people know what to plug in.
 Use `usb-host` for pads, keyboards and mice, which need a powered hub.
 Use `usb-device` when the cart plugs into a computer, and `psram` when
-your plugin uses the PSRAM.
+your plugin uses the PSRAM. `standalone` isn't something it uses: it says
+the plugin can start without a file (above).
 
 ## What your plugin can use while it runs
 

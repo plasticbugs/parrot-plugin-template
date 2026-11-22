@@ -23,5 +23,6 @@ parrotcart_screen(hello)
 #   HOME /FOLDER        where its files live on the card
 #   OPENS .ext ...      the files the menu opens with it (FILE_ICON for their icon)
 #   USES usb-host usb-device psram
+#   USES standalone     it has OPENS but can also start with no file
 cvcart_plugin(hello ID yourname.hello NAME "Hello" VERSION 0.1.0 BY "Your Name"
               ICON src/icon.txt README README.md)
