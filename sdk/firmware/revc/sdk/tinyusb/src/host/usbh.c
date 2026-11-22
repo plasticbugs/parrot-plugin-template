@@ -943,6 +943,12 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
         if (ctrl_xfer_expired) {
           control_xfer_timeout_expired();
         }
+  #if CFG_TUH_HUB
+        // cvcart: every event handled: the hubs' ports are read (hub.c)
+        hub_poll(_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8 || !osal_queue_empty(_usbh_daq),
+                 _usbh_data.ctrl_xfer_info.stage == CONTROL_STAGE_IDLE && tu_fifo_empty(&_usbh_pending_ctrl_q) &&
+                   _usbh_data.call_after.func == NULL);
+  #endif
         return false;
       }
       if (ctrl_xfer_expired) {
