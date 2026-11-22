@@ -16,3 +16,6 @@ also, from elsewhere:
   firmware/revc/sdk/cvedit.c
       the kit's own: 4070e7f's with GCC's Linux truncation warnings fixed
       (kit commits 43d0bf4, 1d38641)
+  firmware/revc/sdk/cvlaunch.h
+      CVL_BACK_GROUP, from the cart's menu-groups branch (f8f9f27), not yet
+      on main (kit commit e2b692e)
