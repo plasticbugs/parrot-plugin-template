@@ -84,7 +84,9 @@ cartridge's. A `peak` at 0 means the sound clips. The lists are only as
 long as the test's script, so give it a script that plays the game's
 sound for a while. Then listen on a TV, which MAME can't stand in for.
 
-TODO(loudness): the reference level, an ordinary cartridge measured this way: __ dBFS.
+Ordinary cartridges measured this way give an `rms` of -20.5 to -23.9
+dBFS (Donkey Kong, Smurf, Lady Bug and Mr. Do!), about -22 on average.
+Aim within 3 or 4 dB of that and not above it.
 
 ## What you can only test on a console
 

@@ -167,7 +167,11 @@ The cart's first arcade plugins came out far too quiet next to a
 cartridge, so the TV had to be turned well up for them. Aim for the
 loudness of an ordinary ColecoVision cartridge at the same TV setting.
 
-TODO(loudness): the reference level, an ordinary cartridge in MAME as `tools/wavlevel.py` measures it: __ dBFS.
+Four cartridges recorded in MAME with `-wavwrite` and measured with
+`tools/wavlevel.py` give an `rms` of -20.5 to -23.9 dBFS (Donkey Kong
+-20.5, Smurf -21.1, Lady Bug -23.9, Mr. Do! -23.9), about -22 on
+average. Aim within 3 or 4 dB of that and not above it. The first
+arcade plugins measured about 12 dB below it.
 
 - With tones, map the machine's full volume to the chip's full volume
   (attenuation 0), not to the middle of its range, and keep the balance
