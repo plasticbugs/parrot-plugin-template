@@ -23,7 +23,8 @@ and the SDK builds from it.
 The RP2350 has two cores. The SDK uses core 1 to talk to the
 ColecoVision. It starts core 1 for you, and your plugin shouldn't use
 it, because the console needs a quick reply every time it reads the
-cartridge.
+cartridge. Its bus loop is timed for the 150 MHz clock, so leave the
+clock as it is. A 200 MHz build crashed the console.
 
 Your plugin runs on core 0. Call the SDK's task function (`cvk_task()`
 or `cvf_task()`) regularly in your main loop. It checks whether the
@@ -61,6 +62,10 @@ writes the picture and the sound. The SDK has two kernels:
   System plugins. A list can carry about 2 KB of video RAM writes a
   frame, about 650 bytes in the vertical blank and about 1,350 more while
   the picture is drawn. The costs are in the header of `gbkernel.asm`.
+  Core 1 serves the lists with a loop that acts on an address only when
+  two samples of the console's pins agree, because a single sample is
+  now and then wrong on a real console. `parrotcart_frames()` builds it
+  in.
 
 On the console side, you have:
 
@@ -80,10 +85,12 @@ On the console side, you have:
 
 ## USB
 
-- As a host, the cart reads up to two game pads with `cvpad` (the Switch
-  Pro Controller and plain HID pads). For keyboards, mice and MIDI, use
-  the copy of TinyUSB in the SDK. The cart can't power USB devices, so
-  plug them into a powered hub.
+- As a host, the cart reads up to two game pads, keyboards, mice and MIDI
+  devices with `cvusb` (`docs/features.md`). The cart can't power USB
+  devices, so plug them into a powered hub. The SDK finds what's on the
+  hub when the plugin starts, and what's plugged in or pulled out while
+  it runs. Some hubs never report a change, so it reads every hub's
+  ports every 100 ms.
 - As a device, the cart plugs into a computer, and your plugin can act
   as any kind of USB device. The SCUMM plugin is a USB MIDI device, so
   its music plays on the computer's synth.

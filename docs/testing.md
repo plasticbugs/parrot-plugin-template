@@ -60,6 +60,32 @@ pads, your computer's MIDI ports, and a folder as the SD card
 few extra words for the keyboard, mouse and pads, and `sim/test.sh` runs
 every example that way.
 
+## How loud
+
+A plugin should sound about as loud as an ordinary ColecoVision
+cartridge with the TV at the same volume. The cart's first arcade
+plugins were far too quiet next to one. Compare the two in MAME,
+recorded the same way:
+
+```sh
+# a cartridge you own, 60 seconds of its title and attract mode
+SDL_VIDEODRIVER=dummy mame coleco -rompath "$MAME_ROMPATH" -cart cart.col \
+    -video none -videodriver dummy -window -nomaximize -sound none \
+    -nothrottle -skip_gameinfo -seconds_to_run 60 -wavwrite cart.wav
+# your plugin's lists from its test/run.sh run, on the same machine
+MAME_WAV=plugin.wav tools/mame-replay.sh "${TMPDIR:-/tmp}/parrotcart-test/myplugin/lists.bin" /tmp/replay 60
+python3 tools/wavlevel.py cart.wav plugin.wav
+```
+
+`-sound none` keeps MAME quiet on the computer, and `-wavwrite` still
+records. `wavlevel.py` gives each file's level in dBFS, leaving out its
+silent seconds. Get the plugin's `rms` within a few dB of the
+cartridge's. A `peak` at 0 means the sound clips. The lists are only as
+long as the test's script, so give it a script that plays the game's
+sound for a while. Then listen on a TV, which MAME can't stand in for.
+
+TODO(loudness): the reference level, an ordinary cartridge measured this way: __ dBFS.
+
 ## What you can only test on a console
 
 The models assume a console and devices that behave perfectly. These
@@ -74,8 +100,12 @@ cart:
 - A real SD card, with its start-up time and slow writes, and what
   happens when someone pulls it out.
 - The PSRAM chip itself.
-- How the sound really sounds, and how the picture looks on a TV, where
-  colors bleed and one-pixel lines shimmer.
+- How the sound really sounds, how loud it is next to a cartridge, and
+  how the picture looks on a TV, where colors bleed and one-pixel lines
+  shimmer.
+- The bus. A frame plugin's note can say how many addresses the bus loop
+  refused (`cvf_bus_counts()`). A few are normal, and many point at the
+  cart's seating or the console.
 - Memory, meaning the plugin's real heap and stack. The Mac's are
   bigger.
 - Speed. The Mac runs your loop a thousand times faster, so a loop pass
@@ -108,7 +138,7 @@ Then check each plugin:
 | MIDI Out Example | Plug the cart's USB-C into a Mac and allow the accessory if asked. Open Audio MIDI Setup or GarageBand, and press keypad 1 to 8 | The TV says `A COMPUTER IS LISTENING`, and the Mac lists `Parrot Cart MIDI Example`. Each key plays a note that stops when you let go, and `SENT` counts two for each key. With nothing plugged in, the TV says `PLUG THE CART INTO A COMPUTER`, and the keypad still counts without hanging |
 | SD Card Example | Run it, press RESET, run it again, then look at the card on a computer | The top folder's first 8 entries with their sizes, the first file's first characters, and `RUN 1, SAVED AND READ BACK`, then `RUN 2`. The menu's note gives the run. On the computer, `/SDCARD.SAV` is 512 bytes and the card checks clean. Try a FAT32 card and an exFAT card. If it can't read the card, it says so in red |
 | Text Viewer | In the card's folders, press A on a `.txt` file (it has the plugin's green icon). Move the stick down and up, hold left fire and move the stick, then press RESET | The file's name and text, wrapped at 30 columns. The stick scrolls by a line, and by a page with left fire held. Back in the menu, you see the same folder with the same file selected, and `Read NAME` on the bottom line. Started from the Plugins page instead, it says `OPEN A .TXT FILE FROM THE MENU`. A name with an accented letter still opens |
-| Frames Example | Watch for a minute, and steer with the stick | Eight color bars appear within a quarter of a second. A round white ball moves smoothly, with no tearing, no stray blocks left behind and no stutter. There's a short beep at each bounce, and the stick turns the ball |
+| Frames Example | Watch for a minute, and steer with the stick | Eight color bars appear within a quarter of a second. A round white ball moves smoothly, with no tearing, no stray blocks left behind and no stutter. There's a short beep at each bounce and silence between, with no drone, and the stick turns the ball |
 | PSRAM Example | Run it | `ID 0D 5D ...`, the bar filling twice, then `ALL 8 MB READ BACK RIGHT` and two times in milliseconds. Write the times down, because they're the PSRAM's real speed |
 
 If one fails, look first at the menu's note after RESET, and at the

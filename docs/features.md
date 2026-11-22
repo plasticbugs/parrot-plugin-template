@@ -43,7 +43,11 @@ The cart's USB port works as either a host or a device.
 - As a host, it's for `PADS`, `KEYBOARD`, `MOUSE` and `MIDI_IN`. The
   cart can't power what's plugged in, so put a powered USB hub between
   the devices and the cart. A hub can take several devices at once, such
-  as two pads, a keyboard, a mouse and a MIDI keyboard together.
+  as two pads, a keyboard, a mouse and a MIDI keyboard together. The SDK
+  finds what's already on the hub when the plugin starts, and what's
+  plugged in or pulled out while it runs, so a plugin only reads its
+  devices. Some hubs never report a change, so it reads every hub's
+  ports every 100 ms.
 - As a device, it's for `MIDI_OUT`. The cart shows up as a MIDI port on a
   computer, named after the plugin.
 
@@ -88,6 +92,7 @@ if (cvusb_pad(0, &p)) {         // pad 0 or 1: false if it isn't there (yet)
     p.lx, p.ly, p.rx, p.ry      // the sticks, -2048..2047, y up
 }
 cvusb_pad_kind(0)               // "SWITCH PRO" or "HID PAD": what it is
+cvusb_pad_dirs(&p)              // GP_UP GP_DOWN GP_LEFT GP_RIGHT: the d-pad, or the left stick past about 40%
 ```
 
 Buttons are named by where they are, so `GP_SOUTH` is the bottom face
@@ -95,7 +100,17 @@ button (B on a Nintendo pad, A on an Xbox one). The Switch Pro
 Controller, pads in Switch mode and plain HID pads are supported. A
 Switch pad takes a moment to start after it's plugged in, so
 `cvusb_pad_kind()` can name it before `cvusb_pad()` returns it. The
-triggers are buttons (`GP_ZL`, `GP_ZR`).
+triggers are buttons (`GP_ZL`, `GP_ZR`). On a PS4 pad, Share is
+`GP_MINUS` and Options `GP_PLUS`.
+
+On a console, the cart has been tried with the Switch Pro Controller, a
+PS4 controller, 8BitDo pads in their Switch mode, and an Anker hub with a
+Genesys GL3523 chip. That hub never reports a change, which is why the
+SDK reads the ports.
+
+`cvinput.h` puts USB pad 1 together with the console's controller, for
+plugins that want one set of controls. The arcade plugins' keys are in
+the skill's `references/porting.md` ("Arcade games").
 
 ### The keyboard: `KEYBOARD`
 
