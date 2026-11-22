@@ -112,15 +112,21 @@ static void diff(uint32_t limit, uint32_t per_byte) {
     }
 }
 
-// the sound chip's bytes for voice 0: a tone, or silence
-static void beep(bool on) {
-    static const uint8_t ON[3] = {0x8E, 0x0F, 0x92}, OFF[1] = {0x9F};   // 440 Hz, fairly loud; volume off
-    const uint8_t n = on ? 3 : 1;
+// The whole sound chip, in every list: voice 0's tone and volume, then
+// voices 1 and 2 and the noise, off. The console now and then reads a byte
+// from the cart wrong, and a sound register written once would keep the
+// wrong value, a drone, until RESET. Written every frame, it lasts a frame.
+static uint8_t psg[10] = {0x8E, 0x0F, 0x9F,     // voice 0: 440 Hz, off for now
+                          0xA0, 0x00, 0xBF,     // voice 1: off
+                          0xC0, 0x00, 0xDF,     // voice 2: off
+                          0xFF};                // the noise: off
+static void sound(bool beep) {
+    psg[2] = beep ? 0x92 : 0x9F;                    // voice 0 fairly loud, or off
     list[len++] = 2;
-    list[len++] = n;
-    memcpy(list + len, on ? ON : OFF, n);
-    len += n;
-    cost += PSG_T(n);
+    list[len++] = sizeof psg;
+    memcpy(list + len, psg, sizeof psg);
+    len += sizeof psg;
+    cost += PSG_T(sizeof psg);
 }
 
 // The first list: the names (tile i at place i, in each third of the
@@ -175,8 +181,9 @@ int main(void) {
 
         len = 0;
         cost = 480;                                 // the kernel's own start of a frame
-        if (bounced) { beep(true); beep_frames = 4; }
-        else if (beep_frames && !--beep_frames) beep(false);
+        if (bounced) beep_frames = 4;
+        else if (beep_frames) beep_frames--;
+        sound(beep_frames > 0);
         diff(BLANK_LIMIT, 23);                      // the blank part: 23 cycles a byte
         list[len++] = 0;
         cost += END_T;

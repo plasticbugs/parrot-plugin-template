@@ -174,7 +174,7 @@ if wanted open-file; then
 fi
 if wanted frames; then
     PC_END=5000 PC_SCRIPT="1000:snap=early 2000:joy=left 2100:joy= 3000:joy=up 3100:joy=" \
-        run frames "$kit/examples/frames" 'psg 8E 0F 92' 'psg 9F'
+        run frames "$kit/examples/frames" 'psg 8E 0F 92 A0 00 BF C0 00 DF FF' 'psg 8E 0F 9F A0 00 BF C0 00 DF FF'
 fi
 if wanted psram; then
     PC_END=60000 run psram "$kit/examples/psram" 'note "PSRAM example: 8 MB right"'

@@ -182,7 +182,7 @@ if wanted open-file; then
 fi
 if wanted frames; then
     run frames "$kit/examples/frames" --ms 5000 --script "1000:snap=early 2000:joy=left 2100:joy= 3000:joy=up 3100:joy=" --wav "$out/frames/frames.wav"
-    expect 'psg 8E 0F 92' 'psg 9F'
+    expect 'psg 8E 0F 92 A0 00 BF C0 00 DF FF' 'psg 8E 0F 9F A0 00 BF C0 00 DF FF'
     # the beep at each bounce (440 Hz for four frames), where the log has its PSG bytes
     "$py" -I "$kit/sim/wavcheck.py" "$o/frames.wav" 0-1200:0 1222-1280:440 1300-2000:0 2023-2080:440 3141-3198:440 \
         3908-3965:440 4000-4990:0 || fail "the beeps aren't where the frame lists put them"

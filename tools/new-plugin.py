@@ -789,6 +789,7 @@ static void picture(void) {
 #define BLANK_LIMIT (BLANK_T - 2000)    // the first part must end inside the blank...
 #define LIST_LIMIT  (FRAME_T - 4000)    // ...and the list well inside the frame
 #define RUN_T       106
+#define PSG_T(n)    (75 + 52 * (n))     // with the ~29 T the sound chip holds the Z80 for at each byte
 #define END_T       54
 static uint8_t list[CVF_LIST_MAX];
 static size_t len;
@@ -827,6 +828,24 @@ static void diff(uint32_t limit, uint32_t per_byte) {
         cursor = (i + n) % VRAM_END;
         scanned += n;
     }
+}
+
+// ---- the sound ----------------------------------------------------------------------------
+// The sound chip's ten bytes: tone low, tone high and volume for voices 0
+// to 2, then the noise's volume (a volume's low 4 bits: 0 loudest, 15 off).
+// Every list carries all of them, changed or not. Now and then the console
+// reads a byte from the cart wrong, and a register written only once would
+// keep the wrong value, a drone, until RESET.
+static uint8_t psg[10] = {0x80, 0x00, 0x9F, 0xA0, 0x00, 0xBF, 0xC0, 0x00, 0xDF, 0xFF};   // all off
+
+static void sound(void) {
+    // YOUR CODE: your sound, into psg[]. Make it about as loud as an
+    // ordinary ColecoVision cartridge (docs/testing.md, "How loud").
+    list[len++] = 2;
+    list[len++] = sizeof psg;
+    memcpy(list + len, psg, sizeof psg);
+    len += sizeof psg;
+    cost += PSG_T(sizeof psg);
 }
 //@end
 
@@ -933,6 +952,7 @@ int main(void) {
         picture();
         len = 0;
         cost = 480;                                     // the kernel's own start of a frame
+        sound();                                        // the whole sound chip, every list
         diff(BLANK_LIMIT, 23);                          // the blank part: 23 cycles a byte
         list[len++] = 0;
         cost += END_T;
@@ -1190,6 +1210,8 @@ def plugin_tests(p):
     an image in test/run.sh, a folder in sim/test.sh."""
     t = p.test
     want = [f'note "{ere(p.note_name)}: 3 presses"', "back to the menu"]
+    if p.screen == "frames":
+        want.append("psg 80 00 9F A0 00 BF C0 00 DF FF")          # the whole sound chip, in the lists
     if p.has("midi-out"):
         want += ["the port is a MIDI device", "midi 90 43 64", "midi 80 43 00"]          # keypad 5: G
     tests = [(t, 3000, "500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy=", want)]
