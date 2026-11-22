@@ -45,7 +45,7 @@ To start:
 2. Install the tools and build (docs/getting-started.md). You get
    `build/HELLO.CVP`.
 3. Copy the `.CVP` into the `/PLUGINS` folder of the cart's SD card. It
-   shows up in the cart's menu under Plugins.
+   shows up in the cart's menu under Apps, on Home.
 4. Run `tools/new-plugin.py`. It asks for the plugin's name, your name,
    the features you want (game pads, a keyboard, a mouse, MIDI in and
    out, the PSRAM, saves) and the file types it opens. Then it writes a

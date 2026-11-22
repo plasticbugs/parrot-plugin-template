@@ -32,10 +32,11 @@ plugins site, and we never build anything from them.
       `python3 tools/png256.py check screenshots/*.png`
 - [ ] It builds from a clean checkout, and `test/run.sh` passes if you
       use it.
-- [ ] It has run on a real console from the card. Start it from the
-      Plugins page, and by opening a file if it opens any. Press RESET to
-      go back to the menu and check its note. Switch the console off
-      while it runs, and on again. `docs/testing.md` has the full list.
+- [ ] It has run on a real console from the card. Start it from Apps
+      on Home if it starts on its own, and by opening a file if it opens
+      any. Press RESET to go back to the menu and check its note. Switch
+      the console off while it runs, and on again. `docs/testing.md` has
+      the full list.
 - [ ] The release notes are in `RELEASE_NOTES.md`. They're optional. The
       workflow uses the file as the release's text, and the plugins site
       shows it. Say what changed, and whether the release needs newer
@@ -66,7 +67,8 @@ gh release create v1.0.0 build/MYPLUGIN.CVP screenshots/screenshot-*.png \
 
 The plugin registry is <https://github.com/plasticbugs/parrot-cart-plugins>.
 Its website, <https://plasticbugs.github.io/parrot-cart-plugins/>, lists
-every plugin and has the icon editor.
+every plugin. The developer portal there has these docs and the icon
+editor.
 
 To get a plugin listed, open an issue in the registry with your
 repository as `owner/repo`. You only do this once. After that, we pick

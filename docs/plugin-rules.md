@@ -42,16 +42,17 @@ cvcart_plugin(target ID developer.pluginname NAME "As The Menu Shows It" VERSION
 
 The SDK marks each `.CVP` with the plugin API version it was built for,
 which is 1 today. If a cart's menu is older than a plugin's API, it won't
-start the plugin and shows `NEEDS NEWER CART FIRMWARE` instead. Newer
+start the plugin and says `It needs newer cart firmware` instead. Newer
 carts run older plugins. You don't set the API version yourself. It
 changes when you update `sdk/` (`tools/update-sdk.sh`) to an SDK with a
 new API. If a release needs a newer cart, say so in your release notes.
 
 ## Size: 1 MB slots
 
-The cart copies each plugin into its flash, in ten 1 MB slots, so the
-plugins you used most recently start straight away. A plugin over 1 MB
-takes two slots side by side. This sets a few limits:
+The cart copies each plugin into its flash, in ten 1 MB slots, so a
+plugin it has copied before starts straight away. When the slots are
+full, the plugin copied longest ago makes room. A plugin over 1 MB takes
+two slots side by side. This sets a few limits:
 
 - The image can be up to 2,093,056 bytes, which is 2 MB minus a 4 KB
   record. Up to 1,044,480 bytes (1 MB minus the record) it takes one

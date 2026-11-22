@@ -217,7 +217,7 @@ won't forgive. Each one has a reason.
 - The visible area is about 240 of the 256 pixels across on most TVs,
   so keep text and controls at least 8 pixels from the left and right
   edges.
-- `cvs_line()` and `canvas_text()` use the menu's 8x8 font, which has
+- `cvs_line()` and `canvas_text()` use an 8x8 font (`font8.h`) that has
   upper case, digits and some punctuation. For lower case and 40 columns,
   use `cvfont` (`cvfont_use()`, a 6x8 font).
 - The colours are `C_BLACK C_MGREEN C_LGREEN C_DBLUE C_LBLUE C_DRED
@@ -307,11 +307,11 @@ GPL or LGPL code needs a source link to the exact tag released.
 ## What only a console shows
 
 The models don't catch everything a console does. Before a release, ask the
-user to try it on a real ColecoVision: start it from the Plugins page
-(and by opening a file, if it opens any), press RESET and read the note,
-switch the console off and on while it runs, try their USB devices
-through a powered hub (and plug a pad in while it runs), and listen to
-the sound and look at the picture on the TV. The sound should be about
+user to try it on a real ColecoVision: start it from Apps on Home if it
+starts on its own (and by opening a file, if it opens any), press RESET
+and read the note, switch the console off and on while it runs, try
+their USB devices through a powered hub (and plug a pad in while it
+runs), and listen to the sound and look at the picture on the TV. The sound should be about
 as loud as a ColecoVision cartridge at the same volume. The simulator
 runs a loop much faster than the cart does, so code that is slow on the
 cart only shows up there. `docs/testing.md` has

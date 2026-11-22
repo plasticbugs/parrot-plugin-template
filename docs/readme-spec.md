@@ -2,7 +2,7 @@
 
 Your repository's `README.md` is also your plugin's manual. The cart
 shows it on the plugin's details page, a page at a time, 30 characters
-wide, in the menu's uppercase font. On the plugins site, your plugin's
+wide, in the menu's font. On the plugins site, your plugin's
 page shows the same cart text, plus the `README.md` itself formatted for
 the web.
 
@@ -70,9 +70,9 @@ Here are some tips that follow from that:
 - Write alt text for images, because it's all the cart shows of them.
 - Badges and banners at the top turn into `[image: ...]` lines on the
   cart, so put them lower down or leave them out.
-- The cart's font has uppercase letters, digits and `! # & ' ( ) * + , -
-  . / : ?`. Other characters are stored as you wrote them, and the
-  plugins site shows them, but they appear as `?` on the TV.
+- The menu's font has every printable ASCII character, lower case
+  included. Accented letters and curly quotes become plain look-alikes,
+  and any other character becomes `?`.
 
 ## The limits
 

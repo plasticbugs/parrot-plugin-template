@@ -100,7 +100,8 @@ On the console side, you have:
 While it runs, your plugin can use all of SRAM below `0x2007EC00`, the
 PSRAM, the USB port and the console. Please keep its flash writes to the
 plugin's log area, so the menu and the other plugins stay safe. On the
-card, write to files only in place (`fs_write_sec`). Pressing RESET or
+card, write only to files your plugin made and to the file it opened
+(`docs/plugin-rules.md`). Pressing RESET or
 turning the console off takes you back to the menu, and so does a reboot.
 
 ## What the cart doesn't have

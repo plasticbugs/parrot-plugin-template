@@ -77,17 +77,22 @@ ninja -C build-examples
 1. Put the SD card in your computer and copy the `.CVP` into its
    `/PLUGINS` folder. If the card doesn't have that folder yet, make it.
 2. Put the card back in the cart and turn the console on. In the menu,
-   press B in the card's top folder to go to Home, then open
-   **Plugins**. It lists everything in `/PLUGINS` with its icon, name
-   and version.
-3. Press A on your plugin to see its details: the version, developer, ID,
-   the files it opens, and its README. Press A again to start it. The
-   first time, the cart copies the plugin into its flash and shows a
-   progress bar. After that, it starts right away.
-4. Press RESET on the console to go back to the menu.
+   press B in the card's top folder to go to Home, then open **Apps**.
+   Pick your plugin and press A to start it. The first time, the cart
+   copies the plugin into its flash and shows how far it has got, in
+   percent, on the bottom line. After that, it starts right away.
+3. Press RESET on the console to go back to the menu.
 
-If your plugin opens files (`OPENS .txt`), it also starts when you pick
-one of those files in the card's folders and press A.
+The **Plugin Manager** on Home lists everything in `/PLUGINS` with its
+icon, name and version. Press A on a plugin there to see its details:
+the version, developer, ID and the files it opens. `*` shows its README.
+A folder in `/PLUGINS`, such as `/PLUGINS/GAMES`, gets a row on Home
+with the apps in it.
+
+If your plugin opens files (`OPENS .txt`), it starts when you pick one
+of those files in the card's folders and press A. It's listed in Apps
+only if it can also start without a file (`USES standalone`,
+`docs/plugin-rules.md`).
 
 To put a new build on the card, copy the new file over the old one. The
 cart copies a changed plugin into flash again. To remove a plugin, delete
@@ -156,5 +161,6 @@ including what you can only test on a real console.
 | `the plugin's .bss reaches the switch's reserved RAM` | The plugin's data is too big for the chip's RAM. Move big buffers to the PSRAM (`examples/psram`). |
 | `links malloc: its heap would grow into the launch block` | Something calls `malloc`, `new`, or `printf` with a float. Remove that call, or add `HEAP` to `cvcart_plugin()` (`sdk/.../cvheap.h`). |
 | a warning that the pico-sdk isn't 2.1.1 | It will probably still work. We build and test the cart with 2.1.1. |
-| on the TV: `NEEDS NEWER CART FIRMWARE` | The plugin was built with a newer SDK than the cart's menu supports. Update the cart's firmware. |
-| the plugin isn't listed | The file isn't in `/PLUGINS`, or the menu can't read it as a `.CVP`, in which case it shows up under its file name instead. |
+| on the TV: `It needs newer cart firmware` | The plugin was built with a newer SDK than the cart's menu supports. Update the cart's firmware. |
+| the plugin isn't in Apps | It opens files and doesn't have `USES standalone`, so it starts from its files and is listed only in the Plugin Manager. Or it's two folders down in `/PLUGINS` (`/PLUGINS/GAMES/OLD`), where Home doesn't look. |
+| the plugin isn't in the Plugin Manager | The file isn't in `/PLUGINS`, or its name doesn't end in `.CVP`. If the menu can't read it as a plugin, it's listed under its file name instead. |

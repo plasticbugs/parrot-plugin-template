@@ -122,10 +122,10 @@ first:
 
 | # | Do | Expect |
 |---|---|---|
-| A | Go to Home, then Plugins | Each plugin is listed with its icon in magenta, its name and its version |
-| B | Press A on it | Its details (version, developer `Parrot Cart` or yours, ID, what it uses) and its README, 30 columns wide, with pages turning |
-| C | Press A again | A progress bar the first time, then the plugin's screen within a second or two |
-| D | Press RESET | The menu, on the Plugins page, with the plugin's note on the bottom line |
+| A | Go to Home, then the Plugin Manager | Each plugin is listed with its icon in magenta, its name and its version. Text Viewer, which needs a file, has the plug icon |
+| B | Press A on it, then `*` | Its details (version, developer `Parrot Cart` or yours, ID, what it uses), then its README, 30 columns wide, with pages turning |
+| C | Press B, then A | The copy into flash counting up the first time, then the plugin's screen within a second or two |
+| D | Press RESET | The menu, back in the Plugin Manager, with the plugin's note on the bottom line |
 | E | Start it again. Switch the console off, wait 5 seconds, and switch it on | The menu, as after a cold start |
 
 Then check each plugin:
@@ -139,7 +139,7 @@ Then check each plugin:
 | Keyboard Example | Plug a keyboard and a mouse into the powered hub. Type, press Enter and Backspace, move the mouse and click | `KEYBOARDS 1 MICE 1`. Letters appear as you type, with none lost or doubled. Enter moves the lines up. The pointer follows the mouse to all four edges of the blue field, and turns red (left button) or green (right button) |
 | MIDI Out Example | Plug the cart's USB-C into a Mac and allow the accessory if asked. Open Audio MIDI Setup or GarageBand, and press keypad 1 to 8 | The TV says `A COMPUTER IS LISTENING`, and the Mac lists `Parrot Cart MIDI Example`. Each key plays a note that stops when you let go, and `SENT` counts two for each key. With nothing plugged in, the TV says `PLUG THE CART INTO A COMPUTER`, and the keypad still counts without hanging |
 | SD Card Example | Run it, press RESET, run it again, then look at the card on a computer | The top folder's first 8 entries with their sizes, the first file's first characters, and `RUN 1, SAVED AND READ BACK`, then `RUN 2`. The menu's note gives the run. On the computer, `/SDCARD.SAV` is 512 bytes and the card checks clean. Try a FAT32 card and an exFAT card. If it can't read the card, it says so in red |
-| Text Viewer | In the card's folders, press A on a `.txt` file (it has the plugin's green icon). Move the stick down and up, hold left fire and move the stick, then press RESET | The file's name and text, wrapped at 30 columns. The stick scrolls by a line, and by a page with left fire held. Back in the menu, you see the same folder with the same file selected, and `Read NAME` on the bottom line. Started from the Plugins page instead, it says `OPEN A .TXT FILE FROM THE MENU`. A name with an accented letter still opens |
+| Text Viewer | In the card's folders, press A on a `.txt` file (it has the plugin's green icon). Move the stick down and up, hold left fire and move the stick, then press RESET | The file's name and text, wrapped at 30 columns. The stick scrolls by a line, and by a page with left fire held. Back in the menu, you see the same folder with the same file selected, and `Read NAME` on the bottom line. In the Plugin Manager, its details say it starts with a file, and A there doesn't start it. A name with an accented letter still opens |
 | Frames Example | Watch for a minute, and steer with the stick | Eight color bars appear within a quarter of a second. A round white ball moves smoothly, with no tearing, no stray blocks left behind and no stutter. There's a short beep at each bounce and silence between, with no drone, and the stick turns the ball |
 | PSRAM Example | Run it | `ID 0D 5D ...`, the bar filling twice, then `ALL 8 MB READ BACK RIGHT` and two times in milliseconds. Write the times down, because they're the PSRAM's real speed |
 

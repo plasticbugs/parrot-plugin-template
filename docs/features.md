@@ -111,7 +111,8 @@ pulled out, and when it was already on the hub at RESET.
 
 `cvinput.h` puts USB pad 1 together with the console's controller, for
 plugins that want one set of controls. The arcade plugins' keys are in
-the skill's `references/porting.md` ("Arcade games").
+the Claude skill's porting notes,
+`.claude/skills/parrot-cart-plugin/references/porting.md` ("Arcade games").
 
 ### The keyboard: `KEYBOARD`
 
@@ -208,8 +209,9 @@ started the plugin with. A plugin made by `tools/new-plugin.py` keeps its
 save in its home folder (`HOME`), or in `/PLUGINS` next to the plugin if
 it has no home folder. With `--opens .ext`, `tools/new-plugin.py` turns
 `CARD` on even without saves, and its `src/main.c` opens the file the
-menu started it with and shows the file's name and size. The file system can't make folders, so the user
-needs to make the home folder.
+menu started it with and shows the file's name and size. That plugin
+doesn't make its home folder, so the user needs to make it, or your
+plugin can make it with `fs_mkdir()` (`fsro.h`).
 
 ## What it costs
 
