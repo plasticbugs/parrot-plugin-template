@@ -31,4 +31,4 @@ done
 cc $flags -Dcvs_update=sdk_cvs_update -c "$sdk/sdk/cvscreen.c" -o "$obj/cvscreen.o"
 # shellcheck disable=SC2086
 cc $flags "$kit/test/host/host.c" "$kit/test/host/tms9918.c" "$sdk/midihello/vdp.c" "$sdk/sdplayer/fsro.c" \
-    "$sdk/sdk/cvusb_keys.c" "$sdk/sdk/cvusb_midi.c" "$obj"/*.o -lz -lm -o "$out"
+    "$sdk/sdk/cvusb_keys.c" "$sdk/sdk/cvusb_midi.c" "$sdk/sdk/cvscale.c" "$obj"/*.o -lz -lm -o "$out"

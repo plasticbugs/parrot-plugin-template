@@ -448,6 +448,9 @@ void cvf_on_exit(void (*fn)(void)) { f_exit = fn; }
 uint32_t cvf_frames(void) { polled("cvf_task()"); console_step(); return f_frames; }
 bool cvf_waiting(void) { return f_list.waiting; }
 bool cvf_console_on(void) { return true; }
+// what the two-sample bus loop (cvfserve.S) refused on the console's bus:
+// the model's bus is clean, so nothing
+void cvf_bus_counts(uint32_t *unsel, uint32_t *early, uint32_t *unhdr) { *unsel = *early = *unhdr = 0; }
 
 void cvf_input(uint8_t *joy, uint8_t *fire, uint8_t *key) {
     static const uint8_t lines[12] = {10, 13, 7, 12, 2, 3, 14, 5, 1, 11, 9, 6};

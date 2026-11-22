@@ -181,7 +181,7 @@ add_executable(parrotsim
   main.c model.c audio.c psg.c input.c card.c extra.c midi.c
   "${KIT}/test/host/tms9918.c"
   "${SDK}/midihello/vdp.c" "${SDK}/sdplayer/fsro.c" "${SDK}/sdk/cvscreen.c" "${SDK}/sdk/swpro.c"
-  "${SDK}/sdk/cvusb_keys.c" "${SDK}/sdk/cvusb_midi.c"
+  "${SDK}/sdk/cvusb_keys.c" "${SDK}/sdk/cvusb_midi.c" "${SDK}/sdk/cvscale.c"
   $<TARGET_OBJECTS:plugin>)
 if(main_in_cxx)
   target_sources(parrotsim PRIVATE cxxmain.cpp)

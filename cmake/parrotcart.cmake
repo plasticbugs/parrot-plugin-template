@@ -7,6 +7,7 @@
 #
 #   add_executable(myplugin src/main.c)
 #   parrotcart_screen(myplugin)           # text and pictures: cvkernel + cvscreen
+#                                         # (or parrotcart_frames: a list every TV frame)
 #   cvcart_plugin(myplugin ID you.myplugin NAME "My Plugin" VERSION 0.1.0 ...)
 #
 # The cart's SDK is the copy in sdk/ (tools/update-sdk.sh refreshes it); its
@@ -56,8 +57,16 @@ endfunction()
 
 # A plugin that makes a whole picture every TV frame (an emulator, a video
 # player): the console runs the SDK's frame kernel, one command list a frame.
+# Core 1 serves the lists with the two-sample bus loop (cvframes_serve2,
+# sdk/.../cvfserve.S), which acts on an address only once two samples of the
+# pins agree. That cured The Empire Strikes Back's glitches on a console,
+# and all the cart's frame plugins are built with it. cvscale.c (the 3/4
+# scaler, cvscale.h) is built in too. The linker leaves it out if nothing
+# calls it.
 function(parrotcart_frames TARGET)
     cvframes_use(${TARGET})
+    cvframes_serve2(${TARGET})
+    target_sources(${TARGET} PRIVATE ${PARROTCART_SDK}/sdk/cvscale.c)
     target_include_directories(${TARGET} PRIVATE ${PARROTCART_DIR}/lib ${PARROTCART_SDK}/midihello)
     _parrotcart_common(${TARGET})
 endfunction()
