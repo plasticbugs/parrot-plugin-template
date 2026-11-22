@@ -22,6 +22,7 @@ example to copy.
 | `cvheap.c/.h` | A heap for a plugin that needs `new` and `malloc`, such as an emulator core. `_sbrk` stops below the launch block, so `malloc` returns NULL there instead of overwriting it. `cvcart_plugin(... HEAP)` links it. Call `cvheap_reserve()` before the first `malloc` to take the whole heap from `_sbrk` at once. Otherwise newlib's `malloc` takes it 4 KB at a time and can't use it all the way to the end. `cvheap_largest()` gives the largest block still free (the NES plugin shows it in its note). |
 | `mkpins.py` | Makes `pins.h` (the address and data pin order) from `hw3/pins.py`, for `cvframes.c`. It's the same table the menu uses. |
 | `cvplugin.cmake` | The CMake functions `cvkernel_use()` or `cvframes_use()`, `cvcart_features()` (or by hand, `cvsd_use()`, `cvpsram_use()` and `cvpad_use()`), `cvfont_use()` and `cvedit_use()`, and `cvcart_plugin()`, which makes the no_flash binary, packages it and writes the `.CVP`. |
+| `cvfserve.S` | The two-sample bus loop. With `cvframes_serve2(target)` after `cvframes_use()`, core 1 serves the frame lists with the games' loop (`cvplay/cvserve.S`, `cvplay/CVSERVE.md`). It never acts on one sample of the pins, and an address that looks like a select doesn't stop the serving. `test/cvframes.sh NEW.elf [OLD.elf]` runs either loop against the kernel's bus cycles. Use it in a new frame plugin: on the console (2026-11-18) it cured The Empire Strikes Back's glitches, and every frame plugin here is built with it. The old loop in `cvframes.c` is still the default, so a plugin that doesn't ask for this one builds as before. |
 | `cvreadme.py` | Converts a plugin's `README.md` into what the cart shows, plain ASCII at 30 columns (`docs/plugins.md`, "The README"). `cvcart_plugin(... README README.md)` runs it through `mkcvp.py --readme`. Run by itself, it prints the text. `test/test_cvreadme.py` checks each rule. |
 | `reserve.ld` | Added to a plugin's link to make sure its `.bss` stops below the launch block, because crt0 zeroes `.bss` before `main`. |
 
@@ -172,6 +173,22 @@ descriptors, and `cvinput.h`.
 `../nes/plugin` is the example. The console runs the Game Boy kernel,
 and each TV frame, the plugin publishes one list for the next frame. The
 list format and its costs are in the header of `gbkernel.asm`.
+
+In `CMakeLists.txt`, a new frame plugin should ask for the two-sample bus
+loop:
+
+```cmake
+cvframes_use(myplugin)
+cvframes_serve2(myplugin)    # core 1's bus loop is cvfserve.S
+```
+
+`cvframes_serve2()` is recommended. Without it, core 1 runs `cvframes.c`'s
+older loop, which acts on one sample of the pins and can hand the console a
+wrong byte or take a stray address for RESET. The plugin's code is the same
+either way. `cvf_bus_counts()` says what the new loop refused, for the note.
+The loop is timed for the SDK's 150 MHz clock.
+
+Then in `main()`:
 
 ```c
 #include "cvframes.h"
