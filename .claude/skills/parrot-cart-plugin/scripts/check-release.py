@@ -6,7 +6,9 @@ Run it in the plugin's folder (a copy of the starter kit). It reads
 CMakeLists.txt's cvcart_plugin() line, README.md, the license files, the
 screenshots, the icons and the git tags, and looks through the files for
 games, ROMs and BIOS images, which must never be in a plugin's repository.
-With --cvp it also checks a built .CVP against CMakeLists.txt.
+It also checks the timing: a frame plugin's lists served by the two-sample
+bus loop, and no change to the 150 MHz clock that loop is timed for. With
+--cvp it also checks a built .CVP against CMakeLists.txt.
 
 Each line is "ok", "warn" (worth fixing) or "FAIL" (fix it before the
 release). It exits 1 if anything failed. Python 3.8 or newer, standard
@@ -306,6 +308,34 @@ def check_roms(root):
         ok("no games, ROMs or saves among the files")
 
 
+# ---- the timing ----------------------------------------------------------------------------
+CLOCK = re.compile(r"\b(set_sys_clock_\w+|clock_configure\w*|vreg_set_voltage)\s*\(")
+
+
+def check_timing(root):
+    """core 1's bus loop: the two-sample one for frame lists, and the 150 MHz it's timed for"""
+    p = os.path.join(root, "CMakeLists.txt")
+    text = re.sub(r"#[^\n]*", "", open(p, encoding="utf-8").read()) if os.path.exists(p) else ""
+    frames = re.search(r"\b(parrotcart_frames|cvframes_use)\s*\(", text)
+    if re.search(r"\bcvframes_use\s*\(", text) and not re.search(r"\b(parrotcart_frames|cvframes_serve2)\s*\(", text):
+        fail("cvframes_use() without cvframes_serve2(): core 1 would serve the lists with the old loop, which "
+             "can hand the console a wrong byte. Use parrotcart_frames(), which has the two-sample loop")
+    elif frames:
+        ok("the frame lists are served by the two-sample bus loop")
+    bad = []
+    for rel in repo_files(root):
+        if rel.startswith(("sdk/", "sim/", "test/", "lua/", "lib/")) or not rel.endswith((".c", ".cpp", ".cc", ".h")):
+            continue
+        try:
+            if CLOCK.search(open(os.path.join(root, rel), encoding="utf-8", errors="replace").read()):
+                bad.append(rel)
+        except OSError:
+            pass
+    if bad:
+        fail(f"{', '.join(bad[:3])}: changes the clock. The SDK's bus loop is timed for 150 MHz, and a "
+             "200 MHz build crashed the console")
+
+
 # ---- a built .CVP ------------------------------------------------------------------------
 def cstr(b):
     return b.split(b"\0", 1)[0].decode("ascii", "replace")
@@ -351,6 +381,7 @@ def main():
     check_license(root)
     check_screenshots(root)
     check_roms(root)
+    check_timing(root)
     if a.cvp:
         check_cvp(a.cvp, f)
     for kind, msg in results:
