@@ -8,6 +8,11 @@ def9782) and the standalone flag (cd457d0). Main has the two-sample bus
 loop (cvfserve.S, cvframes_serve2: 6fd58e0, from esbglitch 537952a).
 
 also, from elsewhere:
+  firmware/revc/sdk/cvscale.c, cvscale.h, test/cvscale_test.c
+      the 3/4 scaler, from the Pac-Man branch at 88872e0 (4a17e6e and
+      88872e0; Donkey Kong d180697 has the same files), not yet on main
+  firmware/revc/sdk/README.md
+      4070e7f's, with the cvscale.c/.h row added
   firmware/revc/sdk/cvedit.c
       the kit's own: 4070e7f's with GCC's Linux truncation warnings fixed
       (kit commits 43d0bf4, 1d38641)
