@@ -17,6 +17,7 @@ sim/run.sh src --headless --strict --ms 3000 --shot /tmp/shot.png          # the
 sim/run.sh src                       # play it in a window (for the user)
 sim/lua.sh src --run                 # a Lua plugin
 test/run.sh                          # models + MAME (NO_MAME=1 without MAME)
+python3 tools/wavlevel.py cart.wav plugin.wav   # how loud, next to a cartridge (docs/testing.md)
 python3 .claude/skills/parrot-cart-plugin/scripts/check-release.py         # before a release
 ```
 
@@ -37,7 +38,7 @@ python3 .claude/skills/parrot-cart-plugin/scripts/check-release.py         # bef
 ## Don't
 
 - Don't edit `sdk/`, and don't touch core 1 or the cart's flash from the
-  plugin.
+  plugin. Leave the clock at 150 MHz, which core 1's bus loop is timed for.
 - Never commit games, ROMs, BIOS images, saves or built `.CVP` files.
 - Don't tag, push, make releases or open issues for the user unless they
   ask. Get everything ready and give them the commands.
