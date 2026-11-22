@@ -106,7 +106,8 @@ triggers are buttons (`GP_ZL`, `GP_ZR`). On a PS4 pad, Share is
 On a console, the cart has been tried with the Switch Pro Controller, a
 PS4 controller, 8BitDo pads in their Switch mode, and an Anker hub with a
 Genesys GL3523 chip. That hub never reports a change, which is why the
-SDK reads the ports.
+SDK reads the ports. With it, a pad was found when plugged in, when
+pulled out, and when it was already on the hub at RESET.
 
 `cvinput.h` puts USB pad 1 together with the console's controller, for
 plugins that want one set of controls. The arcade plugins' keys are in
