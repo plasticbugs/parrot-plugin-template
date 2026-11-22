@@ -85,7 +85,9 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   midi-in, midi-out, psram, saves` (or `all`, `none`).
   `--opens ".swp .lvl"` makes the menu open those files with the plugin.
   It turns on the card (`CARD`), and `src/main.c` opens the file the
-  plugin was started with and shows its name and size.
+  plugin was started with and shows its name and size. If the plugin can
+  also start without a file, add `USES standalone` to `cvcart_plugin()`,
+  and the menu lists it with the apps (`docs/plugin-rules.md`).
 - `--license` takes an SPDX ID (default MIT). An emulator core usually
   decides this, so check the core's license first.
 
@@ -187,17 +189,28 @@ won't forgive. Each one has a reason.
   canvas has no sprites: `api_sprites()` in `lua/api.c` shows how to add
   the sprite table to a screen list, and with the frame kernel you write
   the sprite tables yourself.
-- **Frame lists** (frame kernel) must be safe to run twice, because the
-  console repeats the last list when no new one arrives. Absolute video
-  RAM writes, registers and sound bytes are safe. Keep each list within
-  its frame (`--strict` reports overruns).
+- **Frame lists** (frame kernel). Use `parrotcart_frames()`, which serves
+  the lists with the SDK's two-sample bus loop. It cured the glitches the
+  older loop gave on a console, so don't call `cvframes_use()` on its own.
+  Keep each list within its frame by the costs in `gbkernel.asm`
+  (`--strict` reports overruns). The console repeats the last list when
+  no new one arrives, so a list must be safe to run twice. Absolute video
+  RAM writes, registers and sound bytes are. If you keep a copy of the
+  console's video RAM, never drop a list. Offer it to `cvf_publish()`
+  until it's taken (`references/porting.md`, "Timing").
+- **Leave the clock at 150 MHz.** The bus loop on core 1 is timed for it,
+  and a 200 MHz build crashed the console.
 - **One kernel per plugin**, and with `cvcart_features()` don't call
   TinyUSB's `tuh_*` functions yourself.
+- **USB pads only need reading.** The SDK finds a pad that is already on
+  a powered hub when the plugin starts, and one plugged in or pulled out
+  while it runs. Some hubs never report a change, so it reads their ports
+  every 100 ms. Call `cvusb_pad()`, or use `cvinput.h`.
 - **Leave a note** for the menu's bottom line when there's something to
   say: `cvk_note("Saved")`, 32 characters at most.
 - **Arcade games share their keys**: keypad * or # adds a coin, 1 and 2
-  start a one- or two-player game (`references/porting.md`, "Arcade
-  games").
+  start a one- or two-player game, and on a USB pad - is a coin and + a
+  start (`references/porting.md`, "Arcade games").
 
 ## Pictures and sound
 
@@ -224,6 +237,14 @@ won't forgive. Each one has a reason.
   which turns a frequency into those bytes (the lowest note is about
   110 Hz). In the frame kernel, sound bytes go in the list. Put the whole
   chip in every list (`references/porting.md`, "The sound").
+- Make it as loud as an ordinary ColecoVision cartridge at the same TV
+  volume. The cart's first arcade plugins were far too quiet next to one.
+  Round off peaks with a soft knee instead of clipping, and measure the
+  level against a cartridge in MAME (`docs/testing.md`, "How loud").
+- A picture taller than 192 lines, such as an arcade game's, fits whole
+  when scaled by 3/4 with `cvscale34()` (`cvscale.h`, built into every
+  frame plugin). The score and lives go in the side margins that leaves
+  (`references/porting.md`, "The picture").
 
 `references/sdk-api.md` lists the SDK's calls by area. The headers in
 `sdk/firmware/revc/sdk/` are the full reference.
@@ -240,7 +261,7 @@ In a copy of the kit, read the file. Elsewhere, fetch it from
 | ID, version, size, HOME, OPENS, USES, what a plugin must do | `docs/plugin-rules.md` |
 | USB pads, keyboard, mouse, MIDI, PSRAM, saves | `docs/features.md` |
 | the simulator, its keys and options | `docs/simulator.md` |
-| tests and what only a console shows | `docs/testing.md` |
+| tests, how loud, and what only a console shows | `docs/testing.md` |
 | Lua: the API, speed, memory, scripts as plugins | `docs/lua.md` |
 | the README the cart shows (30 columns) | `docs/readme-spec.md` |
 | icons, screenshots | `docs/icons.md`, `docs/screenshots.md` |
@@ -254,8 +275,9 @@ In a copy of the kit, read the file. Elsewhere, fetch it from
 Run `scripts/check-release.py` from this skill's folder in the plugin's
 folder (add `--cvp build/NAME.CVP` after a build). It checks the ID, the
 version against the last tag, the README's credits and source link, the
-screenshots, the license files, and looks for ROMs or game data that
-must not be in the repository. Fix what it reports, then:
+screenshots, the license files and the timing (the frame lists' bus loop
+and the clock), and looks for ROMs or game data that must not be in the
+repository. Fix what it reports, then:
 
 1. **Screenshots**: up to three, `screenshots/screenshot-1.png` to
    `-3.png`, each exactly 256x192 and under 100 KB. The simulator's
@@ -288,9 +310,11 @@ The models don't catch everything a console does. Before a release, ask the
 user to try it on a real ColecoVision: start it from the Plugins page
 (and by opening a file, if it opens any), press RESET and read the note,
 switch the console off and on while it runs, try their USB devices
-through a powered hub, and listen to the sound and look at the picture
-on the TV. The simulator runs a loop much faster than the cart does, so
-code that is slow on the cart only shows up there. `docs/testing.md` has
+through a powered hub (and plug a pad in while it runs), and listen to
+the sound and look at the picture on the TV. The sound should be about
+as loud as a ColecoVision cartridge at the same volume. The simulator
+runs a loop much faster than the cart does, so code that is slow on the
+cart only shows up there. `docs/testing.md` has
 the full list.
 
 ## Bigger projects
@@ -299,5 +323,6 @@ For an emulator, a game engine, or other code that wasn't written for
 the cart, read `references/porting.md` first. It covers the frame kernel's
 budget, turning another machine's picture and sound into the
 ColecoVision's, memory, speed, and what the published plugins did. A
-picture taller than 192 lines can often be scaled by 3/4 to fit whole,
-which is usually better than a view the user has to move around.
+picture taller than 192 lines can often be scaled by 3/4 to fit whole
+with `cvscale34()`, which is usually better than a view the user has to
+move around. For an arcade game, read its "Arcade games" section too.

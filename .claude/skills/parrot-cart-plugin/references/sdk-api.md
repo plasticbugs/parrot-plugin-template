@@ -9,6 +9,7 @@ the details. Paths are from the kit's top folder. `SDK` is
 - CMake
 - The screen kernel (`cvk_`, `cvs_`, the canvas)
 - The frame kernel (`cvf_`) and its lists
+- Scaling a picture (`cvscale34`)
 - The controller
 - Sound
 - USB (`cvusb_`)
@@ -30,12 +31,16 @@ cvcart_features(myplugin PADS KEYBOARD MOUSE MIDI_IN MIDI_OUT PSRAM CARD)   # on
 cvfont_use(myplugin)                     # optional: the 6x8 font
 cvcart_plugin(myplugin ID you.myplugin NAME "My Plugin" VERSION 0.1.0 BY "You"
               HOME /MYPLUGIN OPENS .ext ICON src/icon.txt FILE_ICON src/file_icon.txt
-              README README.md [HEAP] [XIP] [FILE OTHER.CVP])
+              README README.md [USES standalone] [HEAP] [XIP] [FILE OTHER.CVP])
 ```
 
 `cmake/parrotcart.cmake` explains `parrotcart_*`, and
 `SDK/cvplugin.cmake` explains the rest. `cvcart_features()` sets the
-`.CVP`'s USES for you. A Lua plugin uses `parrotcart_lua(target MAIN
+`.CVP`'s USES for you. `USES standalone` is for a plugin with `OPENS`
+that can also start without a file (`docs/plugin-rules.md`).
+`parrotcart_frames()` is `cvframes_use()` and `cvframes_serve2()` (the
+two-sample bus loop) with `cvscale.c` built in. Use it rather than
+`cvframes_use()` alone. A Lua plugin uses `parrotcart_lua(target MAIN
 src/main.lua FILES ... HOME /FOLDER)` instead of `parrotcart_screen()`
 (`docs/lua.md`).
 
@@ -76,6 +81,7 @@ because the SDK sends only what changed.
 | `cvf_input(&joy, &fire, &key)` | the controller as the kernel read it, low means pressed (or use `cvinput.h`) |
 | `cvf_on_exit(fn)` | runs once on the way back to the menu, with the console parked: write saves here |
 | `cvf_note(text)` | the note for the menu |
+| `cvf_bus_counts(&unsel, &early, &unhdr)` | what the bus loop refused since the start: addresses that looked like a select, selects taken as their read ended, addresses that looked like the header. For the note |
 
 A list has two parts, each ended by `0`: the first runs in the vertical
 blank (a video RAM byte every 23 Z80 cycles), the second while the
@@ -92,7 +98,26 @@ A frame is 59,736 Z80 cycles, about 1,800 bytes of writes. The kernel
 sets up Graphics II with patterns at `0x0000`, colours at `0x2000` (6,144
 bytes each) and names at `0x1800`. A full picture is 12,288 bytes, so
 keep a copy of what the console's video RAM holds and send what differs,
-as many bytes as fit. Every list must be safe to run twice.
+as many bytes as fit. Every list must be safe to run twice, because the
+console runs the last one again when no new one has come. `cvf_publish()`
+returns false while the last list is still waiting. Keep the list and
+offer it again, and never drop one that your copy of video RAM counts on
+(`porting.md`, "Timing").
+
+## Scaling a picture
+
+`SDK/cvscale.h`. Every frame plugin has it (`parrotcart_frames()`). A
+screen plugin adds `${PARROTCART_SDK}/sdk/cvscale.c` to its sources.
+
+| Call | What it does |
+|---|---|
+| `cvscale34(src, sstride, w, h, cx0, cx1, dst, dstride)` | `w` x `h` pens (multiples of 4) to 3/4 of that each way. Of each 4 lines, then each 4 columns, it keeps the 1st and 4th and makes the middle two one, so 1-pixel strokes and edges stay. Only columns `cx0` to `cx1 - 1` (multiples of 4; `0, w` for all), which land at `3 * cx0 / 4` in `dst`: a piece comes out as the whole picture would have it there |
+| `cvscale_pick()`, `cvscale_mid()` | the same rules, inline, for a plugin with its own loop |
+
+Pens are any 8-bit values, compared only for being the same, so scale the
+machine's colour numbers and map them to the TMS9918's after. Make pen 0
+the background: the line rule counts it as that, and outside the picture
+the neighbours are 0.
 
 ## The controller
 
@@ -142,8 +167,12 @@ uint8_t msg[3]; while (cvusb_midi_read(msg) > 0) ...   // MIDI_IN or MIDI_OUT
 cvusb_midi_send(bytes, 3);
 ```
 
-USB devices need a powered hub, because the cart can't power them. A
-getter for a feature that is off is a build error that names the switch.
+USB devices need a powered hub, because the cart can't power them. The
+SDK finds a pad already on the hub at the start, and one plugged in or
+pulled out later, so a plugin only reads pads. `cvusb_pad_dirs(&p)` gives
+the d-pad, or the left stick past about 40%, as `GP_UP GP_DOWN GP_LEFT
+GP_RIGHT`. A getter for a feature that is off is a build error that names
+the switch.
 
 ## The SD card
 
