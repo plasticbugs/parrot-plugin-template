@@ -454,10 +454,9 @@ TU_ATTR_ALWAYS_INLINE static inline void usbh_device_close(uint8_t rhport, uint8
     // the next device must not inherit a spent one. enum_teardown() clears enumerating_daddr first, so its own closes
     // keep the budget.
     _usbh_data.root_retry_count = 0;
-    // clear enum delay function of the device being removed
-    if (_usbh_data.call_after.func == enum_delay_async) {
-      _usbh_data.call_after.func = NULL;
-    }
+    // clear enum delay function of the device being removed (cvcart: any deferred call: while a device enumerates the
+    // one slot is its own, also hub.c's wait for a new hub's port power)
+    _usbh_data.call_after.func = NULL;
   }
 
   // If this device has in-flight control xfer, complete as FAILED

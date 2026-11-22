@@ -36,6 +36,7 @@ typedef struct {
 
   uint8_t poll_failed_count; // consecutive failed status-change interrupt polls
   uint8_t recover_port;      // last status read by the recovery: 0 = hub, 1..bNbrPorts = port
+  uint16_t present;          // cvcart: ports (bit n = port n) found with a device at power-up and no change flagged
 } hub_interface_t;
 
 typedef struct {
@@ -254,6 +255,11 @@ bool hub_edpt_status_xfer(uint8_t daddr) {
 //--------------------------------------------------------------------+
 static void config_set_port_power (tuh_xfer_t* xfer);
 static void config_port_power_complete (tuh_xfer_t* xfer);
+static void config_scan_start (uintptr_t param);
+static void config_scan_port (tuh_xfer_t* xfer);
+static void config_scan_cleared (tuh_xfer_t* xfer);
+static void config_scan_next (uint8_t daddr, uint8_t port);
+static void config_complete (uint8_t daddr);
 static void config_get_hub_descriptor(tuh_xfer_t* xfer);
 
 bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
@@ -330,15 +336,108 @@ static void config_port_power_complete (tuh_xfer_t* xfer) {
   if (xfer->setup->wIndex == p_hub->bNbrPorts) {
     // All ports are power -> queue notification status endpoint and
     // complete the SET CONFIGURATION
-    if (!hub_edpt_status_xfer(daddr)) {
-      TU_MESS_FAILED();
-      TU_BREAKPOINT();
+    // cvcart: then read every port's status once (config_scan_port). A hub that was already powered, by its own
+    // charger, with a device on a port (a Genesys GL3523 does this) never names that port on its status endpoint, so
+    // the device is never seen. Linux and macOS read every port at a hub's start for the same reason, after the
+    // ports' power has had its bPwrOn2PwrGood time (at least 100 ms), and take any port with a device on it as new
+    // whatever its change flags say. So does this. It runs inside the hub's own enumeration, so no other control
+    // transfer can be under way. (Pad Test 0.1.3 read the ports straight after powering them and left a port whose
+    // connection change was flagged to the status endpoint: the pad was still missed.)
+    p_hub->present = 0;
+    uint32_t wait_ms = 2u * p_hub->bPwrOn2PwrGood_2ms;
+    if (wait_ms < 100) wait_ms = 100;
+    tuh_hub_scan_cb(daddr, 0, p_hub->bNbrPorts, (uint16_t) wait_ms);
+    if (!usbh_defer_func_ms_async(wait_ms, config_scan_start, daddr)) {
+      config_scan_start(daddr);     // (the deferred call's one slot was taken: read them now)
     }
-    usbh_driver_set_config_complete(daddr, p_hub->itf_num);
   } else {
     // power next port
     uint8_t const hub_port = (uint8_t) (xfer->setup->wIndex + 1);
     hub_port_set_feature(daddr, hub_port, HUB_FEATURE_PORT_POWER, config_port_power_complete, 0);
+  }
+}
+
+// cvcart: what the scan found, for a diagnostic screen (Pad Test). port 0: the scan is about to start, status = the
+// number of ports, change = the wait in ms. Otherwise a port's status and change bits as read.
+TU_ATTR_WEAK void tuh_hub_scan_cb(uint8_t daddr, uint8_t port, uint16_t status, uint16_t change) {
+  (void) daddr; (void) port; (void) status; (void) change;
+}
+
+// cvcart: the ports' power has settled: read port 1 (then each in turn)
+static void config_scan_start (uintptr_t param) {
+  uint8_t const daddr = (uint8_t) param;
+  if (!tuh_connected(daddr)) {
+    return;                         // the hub went while its ports' power settled: its removal ends the enumeration
+  }
+  if (!hub_port_get_status(daddr, 1, NULL, config_scan_port, 0)) {
+    config_complete(daddr);
+  }
+}
+
+// cvcart: one port's status read at power-up. A device there is taken as new, as Linux does; a connection change
+// flagged on the port is cleared first, so the status endpoint doesn't name it again and start the device over.
+static void config_scan_port (tuh_xfer_t* xfer) {
+  uint8_t const daddr = xfer->daddr;
+  hub_interface_t* p_hub = get_hub_itf(daddr);
+  uint8_t const port = (uint8_t) tu_le16toh(xfer->setup->wIndex);
+
+  if (xfer->result == XFER_RESULT_SUCCESS && xfer->actual_len >= sizeof(hub_port_status_response_t) && port < 16) {
+    hub_port_status_response_t const* st = (hub_port_status_response_t const*) get_hub_epbuf(daddr)->ctrl_buf;
+    TU_LOG_DRV("HUB port %u at power-up: status %04x change %04x\r\n", port, st->status.value, st->change.value);
+    tuh_hub_scan_cb(daddr, port, st->status.value, st->change.value);
+    if (st->status.connection) {
+      p_hub->present |= (uint16_t) (1u << port);
+    }
+    if (st->change.connection &&
+        hub_port_clear_feature(daddr, port, HUB_FEATURE_PORT_CONNECTION_CHANGE, config_scan_cleared, 0)) {
+      return;
+    }
+  } else {
+    tuh_hub_scan_cb(daddr, port, 0xFFFF, 0xFFFF);      // (no answer)
+  }
+  config_scan_next(daddr, port);
+}
+
+static void config_scan_cleared (tuh_xfer_t* xfer) {
+  config_scan_next(xfer->daddr, (uint8_t) tu_le16toh(xfer->setup->wIndex));
+}
+
+// cvcart: the next port, or the end of the configuration
+static void config_scan_next (uint8_t daddr, uint8_t port) {
+  hub_interface_t* p_hub = get_hub_itf(daddr);
+  if (port < p_hub->bNbrPorts && hub_port_get_status(daddr, (uint8_t) (port + 1), NULL, config_scan_port, 0)) {
+    return;
+  }
+  config_complete(daddr);
+}
+
+// cvcart: the end of the hub's configuration. With devices found at power-up, each is attached as if its port had
+// been flagged, and the status endpoint is left unpolled as after STATE_CHECK_CONN: usbh polls it again during the
+// first device's enumeration (or when that fails), and enumerates the others in turn from its deferred attaches.
+static void config_complete (uint8_t daddr) {
+  hub_interface_t* p_hub = get_hub_itf(daddr);
+  uint16_t const present = p_hub->present;
+  p_hub->present = 0;
+
+  if (!present && !hub_edpt_status_xfer(daddr)) {
+    TU_MESS_FAILED();
+    TU_BREAKPOINT();
+  }
+  usbh_driver_set_config_complete(daddr, p_hub->itf_num);
+
+  for (uint8_t port = 1; port < 16; port++) {
+    if (present & (1u << port)) {
+      TU_LOG_DRV("HUB port %u: a device already there at power-up\r\n", port);
+      const hcd_event_t event = {
+        .rhport     = usbh_get_rhport(daddr),
+        .event_id   = HCD_EVENT_DEVICE_ATTACH,
+        .connection = {
+          .hub_addr = daddr,
+          .hub_port = port
+        }
+      };
+      hcd_event_handler(&event, false);
+    }
   }
 }
 
