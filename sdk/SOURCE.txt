@@ -19,3 +19,9 @@ also, from elsewhere:
   firmware/revc/sdk/cvlaunch.h
       CVL_BACK_GROUP, from the cart's menu-groups branch (f8f9f27), not yet
       on main (kit commit e2b692e)
+  firmware/revc/midihello/font8.h
+      the kit's own: 4070e7f's with '_' drawn (it was a second '?'), for
+      MAME's ROM names
+  firmware/revc/sdk/cvsd.h
+      the kit's own: 4070e7f's with cvsd_card_in()'s comment matching
+      cvsd.c (it sets up the pins itself, so it works before cvsd_init())

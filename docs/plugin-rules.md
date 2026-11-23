@@ -134,8 +134,12 @@ console to itself.
   and keep each pass short. The task function checks the console's power
   and RESET, and takes the cart back to the menu when it's time. One long
   step at the start is fine, such as starting the card, which can take up
-  to a second and a half. Avoid loops that wait, because RESET only
-  works while the task function gets to run.
+  to a second and a half, as long as the task function comes straight
+  after it. The models in `test/` and the simulator fail a plugin that
+  looks at the console (`cvf_frames()`, `cvk_report()`) more than 100 ms
+  after its last task call, so call the task function again before the
+  next look. Avoid loops that wait, because RESET only works while the
+  task function gets to run.
 - Leave a note for the menu when there's something to say, like
   `cvk_note("Saved")`. A note can be up to 32 characters, and the menu
   shows the first 30.

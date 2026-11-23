@@ -201,7 +201,8 @@ Match entries by `e.crc` against the CRCs in MAME's driver for the game.
 
 | Call | What it does |
 |---|---|
-| `cvsd_init()` | starts the card (0.1 to 1.5 s) |
+| `cvsd_card_in()` | the slot's switch: is a card in? It sets up the pins itself, so it works before `cvsd_init()` |
+| `cvsd_init()` | starts the card (0.1 to 1.5 s). Call the task function straight after it |
 | `cvsd_resume()` | uses the card as the menu left it, without starting it again. Falls back to `cvsd_init()` when it returns false |
 | `cvsd_open_launched(&fs, launch, writable, &file)` | mounts the card and opens the file the menu launched the plugin with |
 | `fs_find(&fs, "/DIR/NAME", &e)`, `fs_dir_open_path`, `fs_dir_next` | find files, list folders |

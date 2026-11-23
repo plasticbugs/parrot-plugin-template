@@ -32,7 +32,7 @@ typedef struct {
     uint32_t rd_sectors, rd_errors, wr_sectors, wr_errors;
 } cvsd_info_t;
 
-bool cvsd_card_in(void);        // the detect switch (after cvsd_init's pin setup)
+bool cvsd_card_in(void);        // the detect switch (it sets up the card's pins itself: fine before cvsd_init())
 bool cvsd_init(void);
 // The card as the firmware before this one left it (the menu, which chained
 // here; or a plugin, which rebooted into the menu): still started and in SPI

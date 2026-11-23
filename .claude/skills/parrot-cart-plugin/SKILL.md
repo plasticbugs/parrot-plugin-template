@@ -165,7 +165,9 @@ won't forgive. Each one has a reason.
   `sleep_ms`, waiting on a flag) shows black or garbage on a real console
   and RESET does nothing. The simulator fails a plugin that polls the
   console for 100 ms without it. One long step at the start, like
-  starting the SD card (up to 1.5 s), is fine.
+  starting the SD card (up to 1.5 s), is fine if the task function comes
+  right after it: the models count from the last task call, so a
+  `cvf_frames()` straight after `cvsd_init()` fails.
 - **Leave core 1 alone.** Don't call `multicore_launch_core1`, and don't
   disable interrupts for long.
 - **Don't write to the cart's flash.** The menu and other plugins live

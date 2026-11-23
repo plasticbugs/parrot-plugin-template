@@ -16,10 +16,13 @@ differ little, so a small change in the sound makes small partial sums.
 
 Each entry is tone 0's attenuation << 8 | tone 1's << 4 | tone 2's."""
 import json
+import os
 import sys
 
 LEVELS, TOP, TOL, WEIGHT = 512, 2.40, 1.5, 0.5
 
+if len(sys.argv) < 3 or sys.argv[1] in ("-h", "--help"):
+    sys.exit(__doc__)
 amp = json.load(open(sys.argv[1]))["amp"]
 name = sys.argv[3] if len(sys.argv) > 3 else "dk"
 NAME = name.upper()
@@ -69,7 +72,8 @@ for i in range(LEVELS - 1, -1, -1):
 
 worst = max(abs(level[t] - i * step) for i, t in enumerate(path))
 with open(sys.argv[2], "w") as f:
-    f.write("// %sdac3.h -- made by tools/mkdac3.py from tools/ladder.json: the DAC's %d levels,\n" % (name, LEVELS))
+    f.write("// %s -- made by tools/mkdac3.py from %s: the DAC's %d levels,\n"
+            % (os.path.basename(sys.argv[2]), os.path.basename(sys.argv[1]), LEVELS))
     f.write("// 0 to %.2f (a channel at attenuation 0 is 1.0), each as tone 0's attenuation << 8 |\n" % TOP)
     f.write("// tone 1's << 4 | tone 2's (all three parked at a period of 1). Off its level by\n")
     f.write("// %.4f at most.\n" % worst)
