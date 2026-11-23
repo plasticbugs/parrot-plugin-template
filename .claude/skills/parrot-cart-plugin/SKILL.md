@@ -298,7 +298,9 @@ repository. Fix what it reports, then:
 1. **Screenshots**: up to three, `screenshots/screenshot-1.png` to
    `-3.png`, each exactly 256x192 and under 100 KB. The simulator's
    `--shot` (or F12 in its window) makes them at that size. Check with
-   `python3 tools/png256.py check screenshots/*.png`.
+   `python3 tools/png256.py check screenshots/*.png`. A plugin that runs
+   the user's ROMs shows its own screens, never the game
+   (`docs/screenshots.md`, "Arcade games").
 2. **README**: what it is, its controls as a list, what to put on the
    card, credits (with license and source link for each), its license
    and a link to its source. Preview what the cart shows with

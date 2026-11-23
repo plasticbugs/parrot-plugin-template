@@ -58,6 +58,35 @@ python3 tools/png256.py crop snapshot.png screenshots/screenshot-1.png
 A capture card's picture of a real console is scaled and soft. It's fine
 for showing off, but the plugins site needs the exact pixels.
 
+## Arcade games and other plugins that need the user's files
+
+A plugin that runs the user's own ROMs (an arcade game, a console
+emulator) can't show the game in its screenshots. The game's pictures
+are drawn from the ROMs, which belong to the game's owner, and a
+screenshot of them in a public repository or on the plugins site is a
+copy of that art. The same goes for anything a test made with the ROMs:
+keep MAME's snapshots and the model's pictures out of the repository.
+
+Show the plugin's own screens instead, the ones it draws with no ROMs:
+
+- the screen it shows when the ROMs aren't on the card, which says what
+  files it needs and where to put them. That's the first thing a new
+  user sees, so it makes a useful first screenshot. Give
+  `tools/screenshot.sh` a card with nothing on it:
+
+  ```sh
+  mkdir -p /tmp/empty && tools/mkcard.sh /tmp/empty /tmp/empty.img
+  PC_CARD=/tmp/empty.img tools/screenshot.sh screenshots/screenshot-1.png src 3000
+  ```
+
+- any page of its own: its controls, its settings, a help page. Draw
+  them in the kit's font (`font8.h`), with no art from the game.
+
+Keep the ROM-free screen worth looking at: the plugin's name, the files
+it wants (`ROBOTRON.ZIP in /ROBOTRON`), and the controls. The README
+says the rest. Don't draw the game's logo or characters on it, since
+those are the game owner's art too.
+
 ## Running MAME headless
 
 Every MAME run in this kit uses the command in `tools/mame-replay.sh`:
