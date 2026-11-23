@@ -108,6 +108,21 @@ Ordinary cartridges measured this way give an `rms` of -20.5 to -23.9
 dBFS (Donkey Kong, Smurf, Lady Bug and Mr. Do!), about -22 on average.
 Aim within 3 or 4 dB of that and not above it.
 
+Without the BIOS, MAME can't play the lists, but a frame plugin's level
+can still be worked out from them:
+
+```sh
+python3 tools/listlevel.py "${TMPDIR:-/tmp}/parrotcart-test/myplugin/lists.bin"
+```
+
+It times each sound byte as the console would, takes each voice's level
+from `tools/ladder.json` (measured on a real console), and prints `rms`,
+`median` and `loudest` in the same dBFS as `wavlevel.py` on MAME's
+recording. On the kit's samples example, on tones, on noise and on
+Donkey Kong Jr.'s lists it came within half a dB of MAME. A screen
+kernel plugin's sound isn't in `lists.bin`, so this is for frame
+plugins only.
+
 To match an arcade game's balance instead, record the arcade in MAME
 over the same play and measure the plugin over the seconds where the
 arcade has sound. `--span` lines the two recordings up by their
