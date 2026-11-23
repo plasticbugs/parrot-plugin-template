@@ -492,10 +492,10 @@ samples it covers.
 
 A list is 16.77 ms of the console's time, 2.52 million cycles at 150 MHz,
 for the board, its sound and the picture. The simulator can't say: it
-runs far faster than the M33. Build that work for the M33 with the
-plugin's flags and count its cycles with Unicorn (a CPU emulator for
-Python; with capstone and pyelftools, in a venv), charging the M33's book
-times per instruction. Time Pilot averages 12.8 ms a list this way, worst
+runs far faster than the M33. `tools/armcount/` can: put a list's work in
+a copy of its `bench.c`, build it with `build.sh` and the plugin's flags,
+and `armcount.py` runs it in Unicorn and charges the M33's book times per
+instruction (`docs/testing.md`, "Fast enough on the cart"). Time Pilot averages 12.8 ms a list this way, worst
 15.5, and Donkey Kong about 14. Keep one Z80 core for both
 of a board's Z80s, so it fits in RAM once. If a busy picture can't keep
 up, send part of it now and the rest next list (Donkey Kong caps a

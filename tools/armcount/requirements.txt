@@ -1,0 +1,6 @@
+# tools/armcount/armcount.py's Python packages, in a venv of their own:
+#   python3 -m venv ~/armcount-venv
+#   ~/armcount-venv/bin/pip install -r tools/armcount/requirements.txt
+unicorn==2.1.4
+capstone==5.0.7
+pyelftools==0.33

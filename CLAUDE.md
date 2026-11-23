@@ -18,6 +18,8 @@ sim/run.sh src                       # play it in a window (for the user)
 sim/lua.sh src --run                 # a Lua plugin
 test/run.sh                          # models + MAME (NO_MAME=1 without MAME)
 python3 tools/wavlevel.py cart.wav plugin.wav   # how loud, next to a cartridge (docs/testing.md)
+python3 tools/listlevel.py lists.bin             # how loud, without MAME's BIOS
+python3 tools/armcount/armcount.py bench.elf    # fast enough on the cart's M33 (docs/testing.md)
 python3 .claude/skills/parrot-cart-plugin/scripts/check-release.py         # before a release
 ```
 
