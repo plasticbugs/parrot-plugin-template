@@ -82,7 +82,11 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   them), so say so. `--out DIR` makes a new folder and leaves the kit as
   it is.
 - `--screen text` or `frames`. `--features` takes `pads, keyboard, mouse,
-  midi-in, midi-out, psram, saves` (or `all`, `none`).
+  midi-in, midi-out, psram, saves` (or `all`, `none`). `--controller2`
+  (frames only) reads the console's second controller too.
+- `--file` is the `.CVP`'s name, up to 8 letters and digits. Without it
+  the name is made from `--name` ("Donkey Kong Junior" is `DKJUNIOR`);
+  pick a better one when that reads badly.
   `--opens ".swp .lvl"` makes the menu open those files with the plugin.
   It turns on the card (`CARD`), and `src/main.c` opens the file the
   plugin was started with and shows its name and size. If the plugin can
@@ -90,6 +94,9 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   and the menu lists it with the apps (`docs/plugin-rules.md`).
 - `--license` takes an SPDX ID (default MIT). An emulator core usually
   decides this, so check the core's license first.
+- Its tests in `test/run.sh` and `sim/test.sh` only check what holds for
+  any plugin (it runs, RESET gets back to the menu, the card stays
+  clean). Add your plugin's own expectations to them as you go.
 
 **The ID is permanent.** It's `developer.pluginname`: lower case, digits,
 `.`, `-` and `_`, up to 32 characters. The menu and the plugins site tell

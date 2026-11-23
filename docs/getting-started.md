@@ -115,8 +115,11 @@ tools/new-plugin.py                   # a new folder beside this one
 tools/new-plugin.py --here            # this copy, in place of Hello
 ```
 
-The new plugin leaves out `examples/`, unless you add `--examples`. Its
-license is MIT unless you pick another one. `tools/new-plugin.py`
+The new plugin leaves out `examples/`, unless you add `--examples`, and
+its docs link to the kit's copies instead. Its file on the card is up to
+8 letters and digits, made from the name unless you give `--file`. A
+frames plugin can read the console's second controller too
+(`--controller2`). Its license is MIT unless you pick another one. `tools/new-plugin.py`
 includes the full license text for MIT, BSD-2-Clause, BSD-3-Clause, ISC,
 Apache-2.0, GPL-2.0 and GPL-3.0 (each `-only` or `-or-later`) and
 LGPL-2.1-or-later. `docs/features.md` describes the features.

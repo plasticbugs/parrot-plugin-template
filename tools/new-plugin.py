@@ -6,6 +6,9 @@
 #   tools/new-plugin.py --name "Star Sweeper" --by "Ann" \
 #       --features pads,keyboard,midi-in --screen text
 #                                        asks nothing: the rest are defaults
+#   --file SWEEPER      the .CVP's name, up to 8 letters and digits (default:
+#                       made from the name: "Donkey Kong Junior" is DKJUNIOR)
+#   --controller2       (with --screen frames) the console's controller 2 too
 #
 # Where it writes:
 #   --out DIR   a new folder: a copy of this kit, made into the plugin
@@ -123,6 +126,41 @@ def default_id(by, name):
     return f"{dev}.{plug}"
 
 
+def check_file(s):
+    s = s.strip().upper()
+    if s.endswith(".CVP"):
+        s = s[:-4]
+    if not re.fullmatch(r"[A-Z0-9]{1,8}", s):
+        raise Bad("use 1 to 8 letters and digits for the .CVP's name, like SWEEPER (it becomes SWEEPER.CVP)")
+    return s
+
+
+def default_file(name):
+    """a short name for the .CVP, up to 8 letters and digits, from the
+    plugin's name: the first of these that fits. The words run together
+    ("Star Trek" STARTREK); without a number at the end ("Robotron 2084"
+    ROBOTRON); without the, a, of, and ("The Empire Strikes Back"
+    EMPIRESTRIKESBACK, too long); the initials and the last word ("Donkey
+    Kong Junior" DKJUNIOR); the first word and the initials ("Pole Position"
+    POLEP); the words without their vowels, cut to 8"""
+    words = [w for w in re.split(r"[^A-Z0-9]+", name.upper().replace("'", "")) if w]
+    if not words:
+        return "PLUGIN"
+    if len(words) > 1 and words[-1].isdigit():
+        words = words[:-1] if len("".join(words)) > 8 else words
+    tries = ["".join(words)]
+    small = [w for w in words if w not in ("THE", "A", "AN", "OF", "AND")] or words
+    tries.append("".join(small))
+    if len(small) > 1:
+        tries.append("".join(w[0] for w in small[:-1]) + small[-1])
+        tries.append(small[0] + "".join(w[0] for w in small[1:]))
+    tries.append("".join(w[0] + re.sub(r"[AEIOU]", "", w[1:]) for w in small))
+    for t in tries:
+        if len(t) <= 8:
+            return t
+    return tries[-1][:8]
+
+
 def check_id(s):
     s = s.strip()
     if not re.fullmatch(r"[a-z0-9_-]+(\.[a-z0-9_-]+)+", s) or len(s) > 32:
@@ -228,7 +266,9 @@ class Plugin:
         self.test = s                                          # test/run.sh's name for it
         t = s.replace("-", "_")
         self.target = t if t[0].isalpha() else "p_" + t
-        stem = re.sub(r"[^A-Z0-9]", "", self.name.upper())[:8] or "PLUGIN"
+        self.controller2 = bool(getattr(a, "controller2", False))
+        self.examples = False                                  # (reshape() says)
+        stem = a.file or default_file(self.name)
         self.stem = stem
         self.file = stem + ".CVP"
         self.save_file = stem + ".SAV"
@@ -348,7 +388,7 @@ MAIN_C = r"""@HEADER@
 
 // ---- the screen: 24 rows of 28 characters -------------------------------------------------
 // Each thing shown has its row. say() fills a row; @SHOWER@ shows the rows.
-// The font has capitals, digits and ! # & ' ( ) * + , - . / : ? (the rest
+// The font has capitals, digits and ! # & ' ( ) * + , - . / : ? _ (the rest
 // show as ?).
 enum {
 @ROWS@
@@ -413,6 +453,21 @@ static void player_step(void) {
     const char k = in.key < 0 ? '-' : in.key == CVIN_STAR ? '*' : in.key == CVIN_HASH ? '#' : (char)('0' + in.key);
     say(ROW_KEYPAD, C_WHITE, "KEYPAD %c  PRESSES %u", k, presses);
 }
+//@if controller2
+
+// ---- player 2: the console's controller 2 -----------------------------------------------
+// The kernel reads it too (parrotcart_frames(... CONTROLLER2) in CMakeLists.txt),
+// which costs 179 Z80 cycles at the start of each list.
+static void player2_step(uint8_t joy, uint8_t fire, uint8_t lines) {
+    // YOUR CODE: player 2. Low means pressed: joy bits 0-3 up, right, down,
+    // left; fire bit 0 the left button, bit 1 the right; the keypad as
+    // cvin_decode_key() reads it (0-9, CVIN_STAR, CVIN_HASH, -1).
+    const int key = cvin_decode_key(lines);
+    const char k = key < 0 ? '-' : key == CVIN_STAR ? '*' : key == CVIN_HASH ? '#' : (char)('0' + key);
+    say(ROW_STICK2, C_WHITE, "PLAYER 2 %s%s%s%s%s%sKEY %c", joy & 1 ? "" : "UP ", joy & 4 ? "" : "DN ",
+        joy & 8 ? "" : "LT ", joy & 2 ? "" : "RT ", fire & 1 ? "" : "L ", fire & 2 ? "" : "R ", k);
+}
+//@end
 //@if usb
 
 // ---- the USB port -----------------------------------------------------------------------
@@ -694,7 +749,7 @@ static void open_start(void) {
     // YOUR CODE: read the file. Sector k of it, 512 bytes, is at
     // fs_lba(&open_fs, k) on the card (0 past its end). Here the first one
     // is read. For a big file, read a few sectors a pass from the loop, so
-    // the loop keeps turning (examples/open-file).
+    // the loop keeps turning (@EXAMPLES@open-file).
     const bool read = open_f.size == 0 || cvsd_read(fs_lba(&open_fs, 0), open_sector);
     say(ROW_FILE_SIZE, read ? C_WHITE : C_LRED, "  %lu BYTES%s", (unsigned long)open_f.size, read ? "" : ", A READ FAILED");
     snprintf(note, sizeof note, "Opened %.25s", name);
@@ -750,7 +805,7 @@ static void draw(canvas_t *c, bool all, void *ctx) {
 //
 // want[] is the video memory the plugin wants and shown[] what the console
 // will hold once the lists sent so far have run. Each frame's list carries
-// as many of the bytes that differ as fit in its time (examples/frames).
+// as many of the bytes that differ as fit in its time (@EXAMPLES@frames).
 #define NAMES    0x1800
 #define SPRITES  0x1B00         // (the sprites' tables, to $1FFF: not written)
 #define COLORS   0x2000
@@ -948,10 +1003,14 @@ int main(void) {
         uint8_t joy, fire, key;
         cvf_input(&joy, &fire, &key);                   // the controller, as the console read it this frame
         cvin_frame(&in, joy, fire, key);
+//@if controller2
+        cvf_input2(&joy, &fire, &key);                  // controller 2, the same way
+        player2_step(joy, fire, key);
+//@end
         step();
         picture();
         len = 0;
-        cost = 480;                                     // the kernel's own start of a frame
+        cost = @KERNEL_START@;                                     // the kernel's own start of a frame@KERNEL_START_WHY@
         sound();                                        // the whole sound chip, every list
         diff(BLANK_LIMIT, 23);                          // the blank part: 23 cycles a byte
         list[len++] = 0;
@@ -966,7 +1025,7 @@ int main(void) {
 
 
 def rows(p):
-    groups = [["TITLE", "BY"], ["STICK", "KEYPAD"]]
+    groups = [["TITLE", "BY"], ["STICK", "KEYPAD"] + (["STICK2"] if p.controller2 else [])]
     if p.has(*USB_FEATURES):
         groups.append(["USB"])
     if p.has("pads"):
@@ -1010,6 +1069,8 @@ def english(items):
 
 def main_c(p):
     flags = set(p.features) | {p.screen}
+    if p.controller2:
+        flags.add("controller2")
     if p.opens:
         flags.add("opens")
     if p.has(*USB_FEATURES):
@@ -1055,6 +1116,9 @@ def main_c(p):
         "STEP_HEADER": ("// ---- the step: " + ("50 times a second " if p.screen == "text" else "every TV frame ")).ljust(92, "-"),
         "USB_START": start,
         "OPENS_TEXT": " ".join(p.opens),
+        "KERNEL_START": "660" if p.controller2 else "480",
+        "KERNEL_START_WHY": " (480, and 179 for controller 2)" if p.controller2 else "",
+        "EXAMPLES": "examples/" if p.examples else "the kit's examples/",
     }
     return render(MAIN_C, flags, values)
 
@@ -1062,6 +1126,9 @@ def main_c(p):
 def cmakelists(p):
     kernel = ("parrotcart_screen({t})           # text and pictures, drawn for you: the screen kernel"
               if p.screen == "text" else
+              "parrotcart_frames({t} CONTROLLER2)   # a whole picture every TV frame: the frame kernel,\n"
+              "                                  # reading the console's controller 2 too (cvf_input2)"
+              if p.controller2 else
               "parrotcart_frames({t})           # a whole picture every TV frame: the frame kernel").format(t=p.target)
     feats = f"cvcart_features({p.target} {' '.join(p.words)})" if p.words else f"# cvcart_features({p.target} PADS ...)"
     extra = []
@@ -1209,12 +1276,15 @@ def plugin_tests(p):
     script, what the log must have) each. The card's test is written apart:
     an image in test/run.sh, a folder in sim/test.sh."""
     t = p.test
-    want = [f'note "{ere(p.note_name)}: 3 presses"', "back to the menu"]
-    if p.screen == "frames":
-        want.append("psg 80 00 9F A0 00 BF C0 00 DF FF")          # the whole sound chip, in the lists
+    # (only what holds for any plugin: the runs fail on any rule the models
+    # see, and the author adds what their plugin's log must show)
+    want = ["back to the menu"]
     if p.has("midi-out"):
-        want += ["the port is a MIDI device", "midi 90 43 64", "midi 80 43 00"]          # keypad 5: G
-    tests = [(t, 3000, "500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy=", want)]
+        want.append("the port is a MIDI device")
+    script = "500:joy=up+fire 900:joy= 1200:key=5 1500:key= 2000:joy=fire2 2300:joy="
+    if p.controller2:
+        script += " 2400:joy2=left+fire 2600:joy2= 2700:key2=3 2900:key2="
+    tests = [(t, 3000, script, want)]
     if p.has(*HOST_FEATURES):
         ev = []
         if p.has("midi-out"):
@@ -1237,13 +1307,16 @@ def plugin_tests(p):
     return tests
 
 
-OPEN_NOTE = r'note "Opened A first file\.txt"'       # what the plugin's -open test must leave
+TESTS_NOTE = """# Each run fails on any rule the models see (test/host/host.c). After a
+# run's folder, add what your plugin's log must show, as grep -E patterns:
+# its note ('note "Saved"'), PSG bytes ('psg 9F'), MIDI ('midi 90 3C').
+"""
 
 
 def test_block(p):
     """test/run.sh's part for the plugin"""
     t = p.test
-    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----"]
+    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----", TESTS_NOTE.rstrip("\n")]
     for name, ms, script, want in plugin_tests(p):
         out += [f"if wanted {name}; then",
                 f'    PC_END={ms} PC_SCRIPT="{script}" \\',
@@ -1257,14 +1330,14 @@ def test_block(p):
                 "    for n in 1 2; do",
                 f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu'",
                 "    done",
-                f"    card_check fat32 \"MS-DOS FAT32\" 2 {shq(path)} {shq(p.save_magic)}",
+                "    card_fsck fat32 \"MS-DOS FAT32\"     # (card_check also reads a save's bytes: test/run.sh)",
                 "fi"]
     if p.opens:
         # (the models don't look at the extension: the card's text file will do)
         out += [f"if wanted {t}-open; then",
                 "    card \"MS-DOS FAT32:MBRSPUD:fat32\"",
                 "    PC_CARD=$out/card-fat32.cdr PC_OPEN=\"/A first file.txt\" PC_END=2500 \\",
-                f"        run {t}-open \"$kit/src\" {shq(OPEN_NOTE)} 'back to the menu'",
+                f"        run {t}-open \"$kit/src\" 'back to the menu'",
                 "fi"]
     out.append("# ---- the examples ----")
     return "\n".join(out) + "\n"
@@ -1274,7 +1347,8 @@ def sim_test_block(p):
     """sim/test.sh's part for the plugin: the same tests in the simulator,
     headless, and the card as a folder"""
     t = p.test
-    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----"]
+    out = ["# ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----",
+           TESTS_NOTE.rstrip("\n").replace("After a\n# run's folder, add", "With expect,\n# add")]
     for name, ms, script, want in plugin_tests(p):
         out += [f"if wanted {name}; then",
                 f'    run {name} "$kit/src" --ms {ms} --script "{script}"',
@@ -1289,13 +1363,13 @@ def sim_test_block(p):
                 f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" --ms 2500",
                 "        expect 'back to the menu'",
                 "    done",
-                f"    save_check \"$out/card\"{shq(path)} {shq(p.save_magic)} 2",
+                f"    [ -f \"$out/card\"{shq(path)} ] || fail \"no {path} in the card folder\"   # (save_check reads its bytes: sim/test.sh)",
                 "fi"]
     if p.opens:
         out += [f"if wanted {t}-open; then",
                 '    tree "$out/card"',
                 f"    run {t}-open-folder \"$kit/src\" --card \"$out/card\" --open \"/A first file.txt\" --ms 2500",
-                f"    expect {shq(OPEN_NOTE)} 'back to the menu'",
+                "    expect 'back to the menu'",
                 f"    same_as {t}-open picture",
                 "fi"]
     out.append("# ---- the examples ----")
@@ -1329,7 +1403,24 @@ def is_hello(root):
     return not os.path.exists(main) or "The smallest useful Parrot Cart plugin" in open(main).read(4000)
 
 
+def kit_links(text):
+    """`examples/X` in a doc, outside code blocks, as a link to the kit's
+    copy: a plugin made without examples/ doesn't have them"""
+    out, fenced = [], False
+    for line in text.split("\n"):
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+        elif not fenced:
+            line = re.sub(r"(?<![\[/])`examples/([^`]*)`",
+                          lambda m: f"[`examples/{m.group(1)}`]({TEMPLATE_URL}/"
+                                    f"{'blob' if '.' in m.group(1).rsplit('/', 1)[-1] else 'tree'}/main/examples/"
+                                    f"{m.group(1).rstrip('/')})", line)
+        out.append(line)
+    return "\n".join(out)
+
+
 def reshape(root, p, examples):
+    p.examples = examples
     # src/: the plugin's main.c and icons, in place of what was there
     src = os.path.join(root, "src")
     for f in ("main.c", "icon.txt", "file_icon.txt"):
@@ -1342,6 +1433,17 @@ def reshape(root, p, examples):
         write(os.path.join(src, "file_icon.txt"), "\n".join(FILE_ICON) + "\n")
     write(os.path.join(root, "CMakeLists.txt"), cmakelists(p))
     write(os.path.join(root, "README.md"), readme(p))
+    if not examples:
+        docs = [os.path.join(root, "CLAUDE.md")]
+        for top in ("docs", os.path.join(".claude", "skills")):
+            for dirpath, _, files in os.walk(os.path.join(root, top)):
+                docs += [os.path.join(dirpath, f) for f in files if f.endswith(".md")]
+        for d in docs:
+            if os.path.exists(d):
+                old = open(d).read()
+                new = kit_links(old)
+                if new != old:
+                    write(d, new)
     write(os.path.join(root, "LICENSE"), license_text(p))
     tp = os.path.join(root, "THIRD-PARTY.md")
     if os.path.exists(tp):
@@ -1379,6 +1481,13 @@ def reshape(root, p, examples):
             return m.group(1) + " ".join(p.ci_tests() + words)
         s = re.sub(r"(NO_MAME=1 test/run\.sh )([^\n]*)", tests_line, s)
         write(wf, s)
+        run = os.path.join(root, "test", "run.sh")
+        if os.path.exists(run):
+            defined = set(re.findall(r"^if wanted (\S+); then", open(run).read(), re.M))
+            called = {w for m in re.finditer(r"NO_MAME=1 test/run\.sh ([^\n]*)", s) for w in m.group(1).split()}
+            missing = sorted(called - defined)
+            if missing:
+                raise SystemExit(f"new-plugin.py: the workflow runs tests test/run.sh doesn't have: {' '.join(missing)}")
 
 
 # ---- asking ------------------------------------------------------------------------------
@@ -1415,11 +1524,16 @@ def interview(a):
                a.id or default_id(a.by, a.name))
     a.about = ask("What the plugin is, in one sentence", lambda s: s.strip(), a.about or
                   "A plugin for the Parrot Cart, the ColecoVision SD cartridge.")
+    a.file = ask("The .CVP's file name on the card, up to 8 letters and digits", check_file,
+                 a.file or default_file(a.name))
     a.version = ask("First version", check_version, a.version)
     print("\nChoose how the plugin draws the screen:")
     for i, (k, what) in enumerate(SCREENS, 1):
         print(f"  {i}. {k:7} {what}")
     a.screen = ask("Which one", check_screen, a.screen)
+    if a.screen == "frames" and a.controller2 is None:
+        a.controller2 = ask("Read the console's controller 2 too, for a two-player game? y/n",
+                            one_of("y", "n"), "n") == "y"
     print("\nChoose the features you want (docs/features.md):")
     for i, (k, _, what) in enumerate(FEATURES, 1):
         print(f"  {i}. {k:9} {what}")
@@ -1452,7 +1566,8 @@ def interview(a):
         a.examples = ask("\nKeep examples/, the small plugins that each show one thing? y/n",
                          one_of("y", "n"), "n") == "y"
     p = Plugin(a)
-    print(f"\n{p.name} {p.version} by {p.by} ({p.id}): {p.screen} screen, "
+    print(f"\n{p.name} {p.version} by {p.by} ({p.id}, {p.file}): {p.screen} screen" +
+          (" with controller 2" if p.controller2 else "") + ", "
           f"features: {', '.join(p.features) or 'none'}, " + (f"opens {' '.join(p.opens)}, " if p.opens else "") +
           f"{p.license}, to {'this kit' if a.here else a.out}")
     if ask("Write the plugin? y/n", one_of("y", "n"), "y") != "y":
@@ -1479,6 +1594,10 @@ def main():
     ap.add_argument("--about", help="what the plugin is, in one sentence (the README's first line)")
     ap.add_argument("--version", default="0.1.0", help="the first version (default 0.1.0)")
     ap.add_argument("--screen", default="text", help="text (the default) or frames")
+    ap.add_argument("--controller2", action="store_true", default=None,
+                    help="with --screen frames: the console's controller 2 too (parrotcart_frames CONTROLLER2)")
+    ap.add_argument("--file", help="the .CVP's name, up to 8 letters and digits (default: made from --name, "
+                                   "like DKJUNIOR for Donkey Kong Junior)")
     ap.add_argument("--features", default="", help="comma-separated (default: none)")
     ap.add_argument("--home", default="", help="the plugin's folder on the card, like /SWEEPER (default: none)")
     ap.add_argument("--opens", default="",
@@ -1505,6 +1624,10 @@ def main():
         a.version = check_version(a.version)
         if a.icon:
             a.icon = check_icon(a.icon)
+        if a.file:
+            a.file = check_file(a.file)
+        if a.controller2 and a.screen != "frames":
+            raise Bad("--controller2 needs --screen frames (the screen kernel reads controller 1 only)")
         if a.name is None:
             if not sys.stdin.isatty():
                 ap.error("give --name and --by, or run it in a terminal to answer questions")
