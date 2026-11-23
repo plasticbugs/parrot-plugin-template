@@ -95,9 +95,42 @@ cartridge's. A `peak` at 0 means the sound clips. The lists are only as
 long as the test's script, so give it a script that plays the game's
 sound for a while. Then listen on a TV, which MAME can't stand in for.
 
+It measures each second from 20 Hz to 15 kHz. A plugin that plays
+samples (`examples/samples`) has two things in its recording that aren't
+sound: the parked tones' carrier, which MAME folds down to a 16-18 kHz
+tone at about -40 dBFS, and the DAC's resting level drifting back at a
+few Hz after a loud sound. Unfiltered, both make silent seconds count as
+sound, and those seconds pull the level down. `--plain` gives that older
+measure. For a cartridge, and for a plugin that's seldom silent, the two
+agree within half a dB.
+
 Ordinary cartridges measured this way give an `rms` of -20.5 to -23.9
 dBFS (Donkey Kong, Smurf, Lady Bug and Mr. Do!), about -22 on average.
 Aim within 3 or 4 dB of that and not above it.
+
+To match an arcade game's balance instead, record the arcade in MAME
+over the same play and measure the plugin over the seconds where the
+arcade has sound. `--span` lines the two recordings up by their
+envelopes first:
+
+```sh
+python3 tools/wavlevel.py --span arcade.wav plugin.wav
+```
+
+A plugin that scales its samples up and rounds the peaks off with a soft
+knee (`.claude/skills/parrot-cart-plugin/references/porting.md`, "How
+loud") can change the balance between its parts. The knee squeezes the
+loud effects and leaves the music alone, so the mix reaches its level
+with the music louder than in the arcade. Write each part's samples
+alone at the same gain (raw 32-bit floats, or 16-bit WAVs), then:
+
+```sh
+python3 tools/knee.py music.f32 effects.f32 --gain 1 1.5 2
+```
+
+It prints, for each gain, how many samples go into the knee or past full
+scale and how much the knee takes off each part. Pick a gain where no
+part loses much more than the others.
 
 ## What you can only test on a console
 
