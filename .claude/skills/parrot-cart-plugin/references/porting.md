@@ -121,11 +121,15 @@ picture.
   each side are free, since none of them shares an 8x1 run with the game.
   The cart's Donkey Kong and Pac-Man plugins cut the score, high score,
   lives, level and bonus out of the status rows and set them in those
-  margins, with the play area in the middle. Scale each piece with
-  `cvscale34()`'s `cx0` and `cx1` as part of the whole picture. Then a
-  piece scaled alone, after it changes, looks just as it would in the
-  whole. If the play area is still too tall, scale only it, and move the
-  rest to the margins the same way.
+  margins, with the play area in the middle. If the play area is still
+  too tall, scale only it, and move the rest to the margins the same way.
+  Text in the margins reads better at the arcade's own size: five columns
+  hold five of its 8x8 characters, so draw labels, scores and lives
+  unscaled, stacked where they don't fit across, and scale only what has
+  to shrink. Scaled 8x8 text loses strokes: Time Pilot's CREDIT came out
+  CREDII at 3/4, its T's crossbar gone, until its HUD went to the
+  arcade's size. Check every piece of the margins against the arcade's
+  picture, glyph by glyph, for a lost stroke or a closed gap.
 - **Sprites**: the TMS9918's 32 sprites, 4 to a line, are useful for a
   mouse pointer or a few objects, not for another machine's 64.
 - **Model video RAM.** Keep a copy of what the console holds, send only
@@ -153,13 +157,19 @@ tones' pitch again in every list as well. Leave the noise's kind and
 rate until they change, because writing that register restarts the
 noise.
 
-Samples can go out through two tones parked at a period of 1, with their
-volumes summed as a DAC. The cart's Q*bert, Pac-Man and Donkey Kong
-plugins play their sound that way, about 6,000 samples a second. Then
-every list is the same length and the console runs the lists back to
-back, so a list's length is the sample clock. Their lists leave the blank
-part empty and put each sample's bytes at its time between the picture's
-runs (31 cycles a byte). It's more work than tones, so try tones first.
+Samples can go out through tones parked at a period of 1, with their
+volumes summed as a DAC. Use three tones: with two, Donkey Kong's sound
+had only about 20 distinct levels and was scratchy in quiet parts, and a
+third tone fixed it. `tools/mkdac3.py tools/ladder.json OUT.h PREFIX`
+makes the table: 512 levels, each a choice of the three attenuations,
+from levels measured on a real console, chosen so neighbouring levels
+differ little (the console hears a sample's three writes one at a time).
+The cart's Q*bert, Pac-Man, Donkey Kong and Time Pilot plugins play their
+sound that way, about 6,000 samples a second. Then every list is the
+same length and the console runs the lists back to back, so a list's
+length is the sample clock. Their lists leave the blank part empty and
+put each sample's bytes at its time between the picture's runs (31
+cycles a byte). It's more work than tones, so try tones first.
 
 ### How loud
 
@@ -240,6 +250,69 @@ PS4 controller, 8BitDo pads in their Switch mode, and an Anker hub with a
 Genesys GL3523 chip. A game whose stick has four ways, not eight, should
 turn a diagonal into one of them the way MAME does: the way that came on
 last wins.
+
+### The ROM set
+
+The user's own MAME set goes in the plugin's `HOME` folder on the card,
+as the zip MAME uses (`/DKONG/dkong.zip`) or as its loose files. The SDK
+reads the zip: `swzip.h` lists its entries and inflates them (add
+`${PARROTCART_SDK}/sdk/swzip.c` to the sources). Find each file by its
+CRC from MAME's driver, not by its name, since sets name them
+differently, and say on the screen which one is missing or wrong. Decode
+the PROMs (palette, colour lookup) when the plugin starts. Never commit a
+ROM; tests read the user's set from a folder they name.
+
+### Match MAME exactly
+
+Build the board (its CPUs, memory map, inputs and video and sound
+registers) as code that compiles both for the cart and for the Mac, and
+test it on the Mac against MAME's driver for the game, run headless:
+
+- **Trace**: MAME's debugger, headless (`-debug -debugger none` with a
+  `-debugscript` that turns on `trace` for each CPU), logs every
+  instruction with its registers. Write the same lines from the model and
+  compare them from the second frame on, for a couple of seconds of the
+  attract mode. The first different line is the bug.
+- **Compare**: a Lua script (`-autoboot_script`) applies a script of
+  inputs at each VBLANK and dumps the board's state: video, colour, work
+  and sprite RAM, each CPU's registers, the sound CPU's RAM. The model
+  dumps the same, and they must match at every frame: a minute of
+  attract mode, then a played game, where the model's own bot plays,
+  its inputs go into the script, and MAME plays the same script. MAME runs
+  an autoboot script again on a soft reset, so guard its setup with a
+  global (`if not _G.done then _G.done = true ... end`).
+- **Pictures**: every 60th frame, MAME's `screen:pixels()` beside the
+  model's picture before scaling, and the console's picture from
+  `tools/mame-replay.sh`.
+
+The Time Pilot and Mr. Do! plugins (under "Where to look") have these
+tests in `test/`: `trace.sh`, `compare.sh` with its Lua dump script,
+`hudcheck.sh` for the margins and `armcount.sh` for the cost below.
+
+### The sound board
+
+Run the sound CPU in the model too (Donkey Kong's 8035, a Konami board's
+Z80 and AY chips), and mix what it makes into one sample stream at the
+lists' rate for the three-tone DAC. Sounds made by circuits instead of a
+chip, as Donkey Kong's walk, jump and stomp are, can be synthesized from
+MAME's discrete model of the circuit (MAME's sound code is BSD-3; credit
+it). Record the game in MAME with `-wavwrite` and the plugin with
+`MAME_WAV`, and compare their loudness with `tools/wavlevel.py` and their
+shape by ear and by lining the two up.
+
+### Is it fast enough
+
+A list is 16.77 ms of the console's time, 2.52 million cycles at 150 MHz,
+for the board, its sound and the picture. The simulator can't say: it
+runs far faster than the M33. Build that work for the M33 with the
+plugin's flags and count its cycles with Unicorn (a CPU emulator for
+Python; with capstone and pyelftools, in a venv), charging the M33's book
+times per instruction. Time Pilot averages 12.8 ms a list this way, worst
+15.5, and Donkey Kong about 14. Keep one Z80 core for both
+of a board's Z80s, so it fits in RAM once. If a busy picture can't keep
+up, send part of it now and the rest next list (Donkey Kong caps a
+picture at 96 changed tiles) rather than slow the game. Count late lists
+in the plugin's note (`cvf_note`), since only the cart has the last word.
 
 ## Memory and the build
 

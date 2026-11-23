@@ -14,6 +14,7 @@ the details. Paths are from the kit's top folder. `SDK` is
 - Sound
 - USB (`cvusb_`)
 - The SD card (`cvsd_`, `fs_`)
+- Zip files (`swzip_`)
 - PSRAM and the heap
 - The launch block and notes
 
@@ -173,6 +174,20 @@ pulled out later, so a plugin only reads pads. `cvusb_pad_dirs(&p)` gives
 the d-pad, or the left stick past about 40%, as `GP_UP GP_DOWN GP_LEFT
 GP_RIGHT`. A getter for a feature that is off is a build error that names
 the switch.
+
+## Zip files (`swzip`)
+
+`SDK/swzip.h`. Add `${PARROTCART_SDK}/sdk/swzip.c` to the sources. Enough
+of zip to take a ROM set out of one: stored and deflated entries. It's
+small, not fast.
+
+| Call | What it does |
+|---|---|
+| `swzip_entry(zip, n, i, &e)` | entry `i` of the zip in `zip[0..n)`: its CRC, sizes, method and bytes. False past the last, or if it isn't a zip |
+| `swzip_read(&e, out)` | the entry's `e.usize` bytes into `out`. False if they don't come out right |
+| `swzip_inflate(src, n, dst, dstlen)` | raw deflate (RFC 1951) of `n` bytes into exactly `dstlen` |
+
+Match entries by `e.crc` against the CRCs in MAME's driver for the game.
 
 ## The SD card
 
