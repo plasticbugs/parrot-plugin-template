@@ -54,7 +54,15 @@ PC_OUT=/tmp PC_END=3000 PC_SCRIPT="500:joy=up 900:key=5" /tmp/myplugin
 open /tmp/screen.png; cat /tmp/log.txt
 ```
 
-The card tests need macOS (`hdiutil`), and the rest also run on Linux.
+The card tests need macOS, for its `fsck` and for mounting the image
+afterwards, and the rest also run on Linux. `tools/mkcard.sh FOLDER
+IMAGE [fat16|fat32|exfat] [mbr|gpt]` makes a card image from a folder,
+for `PC_CARD=IMAGE`. On a Mac it uses `hdiutil` and always names the
+volume, since `hdiutil` fails with "Operation not permitted" when it names
+it after a folder whose name is longer than 11 characters. On Linux it
+uses `mkfs.fat` and `mcopy` (the dosfstools and mtools packages) and
+makes FAT16 or FAT32 in an MBR. The simulator takes a folder as the card
+on any system.
 
 To play your plugin instead of scripting it, use the simulator. It runs
 the same models in a window, with sound, the keyboard, mouse and game

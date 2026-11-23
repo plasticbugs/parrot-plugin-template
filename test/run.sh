@@ -11,7 +11,7 @@
 #      kernel in headless MAME (tools/mame-replay.sh), and MAME's picture
 #      must be the model's, pixel for pixel
 # and for the card examples, on FAT16, FAT32 and exFAT images made by
-# hdiutil, macOS's own fsck and a mount afterwards.
+# tools/mkcard.sh (hdiutil on a Mac), macOS's own fsck and a mount afterwards.
 #
 # Output in $TMPDIR/parrotcart-test (pictures: */screen.png).
 # NO_MAME=1 skips step 2. Step 2 needs mame, sjasmplus and the ColecoVision
@@ -93,7 +93,10 @@ wanted() { [ -z "$ONLY" ] && return 0; case " $ONLY " in *" $1 "*) return 0 ;; e
 ONLY="$*"
 
 # a card image: FILESYSTEM:LAYOUT:NAME -> $out/card-NAME.cdr, from a small
-# tree, with more folders if asked (card SPEC /FOLDER ...)
+# tree, with more folders if asked (card SPEC /FOLDER ...). FILESYSTEM and
+# LAYOUT are hdiutil's names; tools/mkcard.sh makes it (a plugin's own
+# cards too: it gives the volume a name, which hdiutil needs when the
+# folder's name is longer than 11 characters)
 card() {
     fsname=${1%%:*}; rest=${1#*:}; layout=${rest%%:*}; cname=${rest#*:}
     shift
@@ -104,24 +107,37 @@ card() {
     printf 'Hello from the card.\nThis is the first file.\n' > "$tree/A first file.txt"
     i=1; : > "$tree/NOTES/Long story.txt"
     while [ $i -le 60 ]; do echo "Line $i of a story long enough to scroll, and to wrap around the screen's 30 columns." >> "$tree/NOTES/Long story.txt"; i=$((i + 1)); done
-    hdiutil create -quiet -srcfolder "$tree" -fs "$fsname" -layout "$layout" -size 64m -format UDTO -o "$out/card-$cname"
+    case $fsname in "MS-DOS FAT16") fs=fat16 ;; "MS-DOS FAT32") fs=fat32 ;; *) fs=exfat ;; esac
+    case $layout in GPT*) lay=gpt ;; *) lay=mbr ;; esac
+    "$kit/tools/mkcard.sh" "$tree" "$out/card-$cname.cdr" $fs $lay
 }
 
 # hdiutil detach, again with -force if the disk is busy (Spotlight, or
 # another test's attach at the same moment)
 detach() { hdiutil detach -quiet "$1" 2>/dev/null || { sleep 1; hdiutil detach -quiet -force "$1"; }; }
 
-# macOS's opinion of an image the plugin wrote to: fsck, then the save
-# file's bytes: 512 of them, starting with MAGIC, a run count at byte 8
-# (card_check NAME FS RUNS [/PATH/OF.SAV MAGIC]: /SDCARD.SAV and PCSAVE1)
-card_check() {
-    cname=$1; fs=$2; runs=$3; save=${4:-/SDCARD.SAV}; magic=${5:-PCSAVE1}
+# macOS's opinion of an image the plugin wrote to: fsck (card_fsck NAME FS,
+# FS as hdiutil names it: "MS-DOS FAT32", ExFAT)
+card_fsck() {
+    cname=$1; fs=$2
     img=$out/card-$cname.cdr
     dev=$(hdiutil attach -nomount -readonly "$img" | awk '$1 ~ /s[0-9]+$/ {d = $1} END {print d}')
     whole=${dev%s*}
-    case $fs in ExFAT) fsck_exfat -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_exfat"; status=1; } ;;
-                *) fsck_msdos -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_msdos"; status=1; } ;; esac
+    fsck_ok=1
+    case $fs in ExFAT) fsck_exfat -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_exfat"; status=1; fsck_ok=0; } ;;
+                *) fsck_msdos -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_msdos"; status=1; fsck_ok=0; } ;; esac
     detach "$whole"
+    [ $fsck_ok = 1 ] && [ $# = 2 ] && echo "  macOS: fsck clean"
+    return 0
+}
+
+# card_fsck, then the save file's bytes: 512 of them, starting with MAGIC,
+# a run count at byte 8 (card_check NAME FS RUNS [/PATH/OF.SAV MAGIC]:
+# /SDCARD.SAV and PCSAVE1)
+card_check() {
+    cname=$1; fs=$2; runs=$3; save=${4:-/SDCARD.SAV}; magic=${5:-PCSAVE1}
+    card_fsck "$cname" "$fs" quiet
+    img=$out/card-$cname.cdr
     mnt=$out/mnt-$cname
     mkdir -p "$mnt"
     hdiutil attach -quiet -readonly -nobrowse -mountpoint "$mnt" "$img"

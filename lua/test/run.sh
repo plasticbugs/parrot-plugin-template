@@ -180,7 +180,9 @@ if wanted card; then
             printf 'return {answer = 42}\n' > "$tree/LUA/lib.lua"
             printf 'one\ntwo\nthree\n' > "$tree/LUA/notes.txt"
             printf 'deep\n' > "$tree/LUA/SUB/deep.txt"
-            hdiutil create -quiet -srcfolder "$tree" -fs "$fsname" -layout "$layout" -size 64m -format UDTO -o "$out/lua-card-$cname"
+            case $fsname in "MS-DOS FAT16") fs=fat16 ;; "MS-DOS FAT32") fs=fat32 ;; *) fs=exfat ;; esac
+            case $layout in GPT*) lay=gpt ;; *) lay=mbr ;; esac
+            "$kit/tools/mkcard.sh" "$tree" "$out/lua-card-$cname.cdr" $fs $lay
             img=$out/lua-card-$cname.cdr
             # started by itself: the editor's list of /LUA (error, files, hello, lib, snake). Down four
             # times to snake.lua, fire opens it, keypad 4 runs it, fire starts the game, * held stops it
