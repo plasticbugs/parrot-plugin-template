@@ -61,7 +61,8 @@ static void model_mailbox(void);
 // the frame kernel: a list's PSG bytes, t cycles into the frame (gbkernel.asm: 75 + 52 a byte)
 static void model_psg(const uint8_t *b, unsigned n, uint32_t t) {
     const double frame = (double)(next_frame - FRAME_US);
-    for (unsigned i = 0; i < n; i++) audio_write(frame + (t + 75 + 52.0 * i) * T_US, b[i]);
+    const double byte_t = f_b2b ? 51.0 : 52.0;     // (back to back, by MAME's costs, as host.c times the lists)
+    for (unsigned i = 0; i < n; i++) audio_write(frame + (t + 75 + byte_t * i) * T_US, b[i]);
 }
 
 // the screen kernel: as midihello.asm's sound loop, once SND_SEQ changes,

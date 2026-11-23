@@ -67,6 +67,8 @@ To start:
 | sd-card | listing a folder, reading a file, a save file |
 | open-file | opening a file picked in the menu |
 | frames | a full picture every TV frame |
+| samples | sound as samples, with lists back to back |
+| two-controllers | both of the console's controllers |
 | psram | the 8 MB of PSRAM |
 
 6. Try it on your computer first. `sim/run.sh src` runs your plugin in

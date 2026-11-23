@@ -64,15 +64,25 @@ endfunction()
 # scaler, cvscale.h) is built in too. The linker leaves it out if nothing
 # calls it.
 #
-#   parrotcart_frames(mygame CONTROLLER2)
+#   parrotcart_frames(mygame [CONTROLLER2] [BACK_TO_BACK])
 #
 # CONTROLLER2: the kernel reads the console's controller 2 as well, for
 # cvf_input2(). It costs 179 Z80 cycles at the start of every frame, so
 # leave it out of a plugin that doesn't read controller 2.
+#
+# BACK_TO_BACK: the plugin makes its lists a little longer than a frame, so
+# the console runs them one straight after another and a list's length is
+# the sample clock (sample sound through the three-tone DAC). It changes
+# nothing on the cart (the plugin can test CVF_BACK_TO_BACK); it tells the
+# models in test/ and sim/ to check those lists as back to back instead of
+# failing them for running past their frame (docs/testing.md).
 function(parrotcart_frames TARGET)
-    cmake_parse_arguments(P "CONTROLLER2" "" "" ${ARGN})
+    cmake_parse_arguments(P "CONTROLLER2;BACK_TO_BACK" "" "" ${ARGN})
     if (P_UNPARSED_ARGUMENTS)
-        message(FATAL_ERROR "parrotcart_frames(${TARGET}): ${P_UNPARSED_ARGUMENTS}? The only option is CONTROLLER2")
+        message(FATAL_ERROR "parrotcart_frames(${TARGET}): ${P_UNPARSED_ARGUMENTS}? The options are CONTROLLER2 and BACK_TO_BACK")
+    endif()
+    if (P_BACK_TO_BACK)
+        target_compile_definitions(${TARGET} PRIVATE CVF_BACK_TO_BACK=1)
     endif()
     cvframes_use(${TARGET})
     cvframes_serve2(${TARGET})

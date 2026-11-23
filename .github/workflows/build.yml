@@ -37,7 +37,7 @@ jobs:
       - name: Run them on the console's model
         run: |
           # (the card examples need macOS's hdiutil, and MAME a BIOS: not here)
-          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames two-controllers psram usb
+          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram usb
 
       - name: The Lua plugin, and scripts on the console's model
         run: |
@@ -80,7 +80,7 @@ jobs:
 
       - name: The models alone, for the simulator's pictures to match
         if: runner.os != 'Windows'
-        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames two-controllers psram vdp usb
+        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram vdp usb
 
       - name: The simulator, headless
         run: |

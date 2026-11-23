@@ -15,7 +15,7 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames two-controllers psram lua vdp usb. Pictures and
+# sd-card open-file frames samples two-controllers psram lua vdp usb. Pictures and
 # logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
@@ -187,6 +187,12 @@ if wanted frames; then
     # the beep at each bounce (440 Hz for four frames), where the log has its PSG bytes
     "$py" -I "$kit/sim/wavcheck.py" "$o/frames.wav" 0-1200:0 1222-1280:440 1300-2000:0 2023-2080:440 3141-3198:440 \
         3908-3965:440 4000-4990:0 || fail "the beeps aren't where the frame lists put them"
+fi
+if wanted samples; then
+    run samples "$kit/examples/samples" --ms 3000 --script "300:key=6 500:key= 1500:joy=fire 1600:joy=" --wav "$out/samples/samples.wav"
+    expect 'psg 90 BB D8 81 00 A1 00 C1 00 FF' 'lists back to back, .* 0 run again'
+    # the note: 440 Hz as samples (442 at MAME's costs), then the drum
+    "$py" -I "$kit/sim/wavcheck.py" "$o/samples.wav" 0-280:0 350-1400:442 || fail "the note isn't in tune in the WAV"
 fi
 if wanted two-controllers; then
     run two-controllers "$kit/examples/two-controllers" --ms 3000 --script "$(cat "$kit/examples/two-controllers/test.script")"

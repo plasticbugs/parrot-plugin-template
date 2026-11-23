@@ -50,9 +50,15 @@
 // 2 too, which puts each list 179 T later in its frame (660 for the start,
 // not 480), and lists.bin says so for tools/mame-replay.sh.
 //
+// A frame plugin whose lists run back to back, a sample clock for its sound
+// (parrotcart_frames(TARGET BACK_TO_BACK), or PC_BACK_TO_BACK=1), is built
+// with CVF_BACK_TO_BACK: a list may then run past its frame, and the model
+// checks instead that the console goes straight from it into the next
+// (below, "Back to back").
+//
 // It exits 1 if the plugin broke a rule the models can see: a bad list, a
 // list sent before the last was taken, three colours in an 8-pixel run, a
-// frame list longer than its frame.
+// frame list longer than its frame (or, back to back, shorter than one).
 
 // pread, pwrite and strdup are POSIX. Under -std=c11, Linux's C library
 // declares them only when asked (macOS's always does).
@@ -277,9 +283,13 @@ static uint8_t mbox[MB_SIZE], mbox_live[MB_SIZE];
 static cvs_t *cvs_seen;
 static uint32_t lists_sent, sounds_sent;
 
-static void list_record(char kernel, bool full, uint8_t seq, const uint8_t *b, size_t n) {
+// lists.bin, for tools/mame-replay.sh: each list after 9 bytes: its kernel
+// ('K' or 'F'), full (for 'F': 1 when the kernel reads controller 2), seq,
+// its length, the ms it was sent at (3 bytes), and flags (1: a frame list
+// meant to run back to back, which the next must follow without a wait)
+static void list_record(char kernel, bool full, uint8_t seq, const uint8_t *b, size_t n, uint8_t flags) {
     const uint8_t h[9] = {(uint8_t)kernel, full, seq, (uint8_t)n, (uint8_t)(n >> 8),
-                          (uint8_t)(now_us / 1000), (uint8_t)(now_us / 1000 >> 8), (uint8_t)(now_us / 1000 >> 16), 0};
+                          (uint8_t)(now_us / 1000), (uint8_t)(now_us / 1000 >> 8), (uint8_t)(now_us / 1000 >> 16), flags};
     fwrite(h, 1, 9, listf);
     fwrite(b, 1, n, listf);
     lists_sent++;
@@ -379,7 +389,7 @@ void cvk_list(const uint8_t *list, size_t n, bool full, uint8_t seq) {
     k_list.full = full;
     k_list.seq = seq;
     k_list.out = true;
-    list_record('K', full, seq, list, n);
+    list_record('K', full, seq, list, n, 0);
 }
 
 // the SDK's own cvs_update (test/run.sh renames it), watched
@@ -398,64 +408,201 @@ size_t cvs_update(cvs_t *s, cvs_draw_fn draw, void *ctx, uint8_t *list, size_t m
 #define FRAME_T  (262 * 228)
 #ifdef CVF_CTRL2
 #define START_T  660                    // the list starts ~660 T after the NMI: 179 more, for controller 2
+#define NOWAIT_T 533                    // MAME: a list's end to the next one's first command, not waiting (354 + 179)
 #else
 #define START_T  480                    // the list starts ~480 T after the NMI
+#define NOWAIT_T 354                    // MAME: a list's end to the next one's first command, not waiting
 #endif
+#define NMI_T    105                    // MAME: the kernel's NMI, the BIOS's jump to it included
+#define LIST_LIMIT (FRAME_T - 1200)     // a list that isn't back to back ends this early
 static uint8_t f_vram[0x4000], f_reg[8] = {0x02, 0xE0, 0x06, 0xFF, 0x03, 0x36, 0x07, 0x01};
 static struct { bool waiting; size_t n; uint8_t bytes[CVF_LIST_MAX]; } f_list;
 static uint32_t f_frames, f_taken, f_worst_vb, f_worst_all, f_psg_bytes;
 static void (*f_exit)(void);
 
-static void f_run(const uint8_t *s, size_t n) {
+// Back to back (porting.md, "The sound"): a plugin that plays samples makes
+// every list a little longer than a frame, and the console goes from one
+// list straight into the next, so a list's length is the sample clock. It
+// says so with parrotcart_frames(TARGET BACK_TO_BACK) (plugin.cmake reads it:
+// CVF_BACK_TO_BACK) or PC_BACK_TO_BACK=1. Then a list past LIST_LIMIT by
+// gbkernel.asm's costs is a back-to-back list, and instead of failing it:
+//   - its whole length by MAME's costs (a PSG byte 51 T, not 52; NOWAIT_T
+//     and NMI_T as MAME runs them) must be over a frame, or the console
+//     waits for the next frame after it: a gap in the sound. The header's
+//     costs run a little over MAME's, so a list sized by them can fall short
+//   - a list that starts right after one that ran into the next frame
+//     isn't in the vertical blank, so its blank part must have no video
+//     RAM writes (23 T a byte, too fast outside the blank)
+// The model keeps the console's own clock: a list starts at the NMI, or at
+// the end of one that ran past it; cvf_frames() counts the starts, as the
+// cart does; and when no new list is ready the last one runs again.
+static bool f_b2b;                      // the plugin's lists may run back to back
+static uint64_t f_ticks;                // TV frames (NMIs) so far, for the console's clock
+static int64_t f_next = -1;             // T of the next list's first command, or -1: after the next NMI
+static uint32_t f_b2b_lists, f_b2b_min = UINT32_MAX, f_b2b_max, f_reruns;
+static bool f_ran;                      // a list has run (one to run again)
+static struct { size_t n; uint8_t bytes[CVF_LIST_MAX]; } f_last;
+
+// a list's costs: kit, by gbkernel.asm's header from START_T (its end);
+// vb, the same at its blank part's end; real, its commands by MAME's costs;
+// vb_vram, video RAM bytes in its blank part. False if it's malformed
+// (fail() says why, if loud).
+typedef struct { uint32_t kit, vb, real, vb_vram; } f_cost_t;
+static bool f_cost(const uint8_t *s, size_t n, f_cost_t *c, bool loud) {
     size_t i = 0;
-    uint32_t t = START_T, vb = 0;
     bool vblank = true;
+    *c = (f_cost_t){START_T, 0, 0, 0};
     for (;;) {
-        if (i >= n) { fail("a frame list without its two ends"); return; }
+        if (i >= n) { if (loud) fail("a frame list without its two ends"); return false; }
         const uint8_t op = s[i];
         if (op == 1) {
-            if (i + 4 > n || i + 4 + s[i + 3] > n || !s[i + 3]) { fail("a VRAM run past the list's end, or of 0 bytes"); return; }
+            if (i + 4 > n || i + 4 + s[i + 3] > n || !s[i + 3]) { if (loud) fail("a VRAM run past the list's end, or of 0 bytes"); return false; }
+            const uint32_t k = 106 + (vblank ? 23u : 31u) * s[i + 3];
+            c->kit += k;
+            c->real += k;
+            if (vblank) c->vb_vram += s[i + 3];
+            i += 4u + s[i + 3];
+        } else if (op == 2) {
+            if (i + 2 + s[i + 1] > n) { if (loud) fail("PSG bytes past the list's end"); return false; }
+            c->kit += 75 + 52u * s[i + 1];
+            c->real += 75 + 51u * s[i + 1];
+            i += 2u + s[i + 1];
+        } else if (op == 3 && vblank) {
+            c->kit += 114;
+            c->real += 114;
+            i += 3;
+        } else if (op == 0) {
+            if (vblank) { vblank = false; c->kit += 54; c->real += 54; c->vb = c->kit; i++; }
+            else { c->kit += 52; c->real += 52; return true; }
+        } else { if (loud) fail("a frame list's command %u at byte %zu", op, i); return false; }
+    }
+}
+
+// a back-to-back list: by its costs, in back-to-back mode
+static bool f_is_b2b(const f_cost_t *c) { return f_b2b && c->kit > LIST_LIMIT; }
+
+// run a list: its writes into the model's VRAM and registers, its sound to
+// the simulator (t0: T from this TV frame's NMI to its first command, and
+// real: by MAME's costs, back to back), and the checks. in_blank: it
+// started at an NMI, not straight after the list before
+static void f_run(const uint8_t *s, size_t n, uint32_t t0, bool real, bool in_blank) {
+    f_cost_t c;
+    if (!f_cost(s, n, &c, true)) return;
+    size_t i = 0;
+    uint32_t t = t0;
+    bool vblank = true;
+    for (;;) {
+        const uint8_t op = s[i];
+        if (op == 1) {
             uint16_t a = (uint16_t)((s[i + 1] | s[i + 2] << 8) & 0x3FFF);
             if (!(s[i + 2] & 0x40)) fail("a VRAM run's address without $40 in its high byte: the VDP takes it as a read");
             for (int k = 0; k < s[i + 3]; k++) f_vram[(a + k) & 0x3FFF] = s[i + 4 + k];
             t += 106 + (vblank ? 23u : 31u) * s[i + 3];
             i += 4u + s[i + 3];
         } else if (op == 2) {
-            if (i + 2 + s[i + 1] > n) { fail("PSG bytes past the list's end"); return; }
             char hex[3 * 16 + 1] = "";
             for (int k = 0; k < s[i + 1] && k < 16; k++) snprintf(hex + 3 * k, 4, " %02X", s[i + 2 + k]);
             logline("psg%s", hex);
             SIM_PSG(s + i + 2, s[i + 1], t);
             f_psg_bytes += s[i + 1];
-            t += 75 + 52u * s[i + 1];
+            t += 75 + (real ? 51u : 52u) * s[i + 1];
             i += 2u + s[i + 1];
-        } else if (op == 3 && vblank) {
+        } else if (op == 3) {
             f_reg[s[i + 2] & 7] = s[i + 1];
             t += 114;
             i += 3;
-        } else if (op == 0) {
-            if (vblank) { vblank = false; vb = t += 54; i++; }
-            else { t += 52; break; }
-        } else { fail("a frame list's command %u at byte %zu", op, i); return; }
+        } else if (vblank) { vblank = false; t += 54; i++; }
+        else break;
     }
-    if (vb > f_worst_vb) f_worst_vb = vb;
-    if (t > f_worst_all) f_worst_all = t;
-    if (vb > VBLANK_T - 600) fail("a list's vertical blank part takes %u T: the blank is %d", vb, VBLANK_T);
-    if (t > FRAME_T - 1200) fail("a list takes %u T: a frame is %d", t, FRAME_T);
+    (void)t;                            // (the simulator's: SIM_PSG)
+    if (c.vb > f_worst_vb) f_worst_vb = c.vb;
+    if (c.kit > f_worst_all) f_worst_all = c.kit;
+    static bool told_vb, told_short;    // (each said once, not every frame)
+    if (!in_blank && c.vb_vram) {
+        if (!told_vb)
+            fail("a list writes %u bytes of video RAM in its blank part, but starts straight after a list that ran into the next frame, "
+                 "so it isn't in the blank: too fast there. Put them in its second part", c.vb_vram);
+        else fails++;
+        told_vb = true;
+    } else if (c.vb > VBLANK_T - 600) fail("a list's vertical blank part takes %u T: the blank is %d", c.vb, VBLANK_T);
+    if (f_is_b2b(&c)) {
+        const uint32_t period = NOWAIT_T + c.real + NMI_T;
+        f_b2b_lists++;
+        if (period < f_b2b_min) f_b2b_min = period;
+        if (period > f_b2b_max) f_b2b_max = period;
+        if (period < FRAME_T) {
+            if (!told_short)
+                fail("a back-to-back list runs %u T by MAME's costs, %u T less than a frame: the console waits for the next frame "
+                     "after it, a gap in the sound. Make it longer (gbkernel.asm's costs run a little over MAME's)", period, FRAME_T - period);
+            else fails++;
+            told_short = true;
+        }
+    } else if (c.kit > LIST_LIMIT) {
+        fail("a list takes %u T: a frame is %d", c.kit, FRAME_T);
+    }
+}
+
+// the console takes a list: the one waiting, or the last again (back to back)
+static void f_take(uint32_t t0, bool in_blank, uint32_t *real) {
+    f_cost_t c = {0};
+    if (f_list.waiting) {
+        f_run(f_list.bytes, f_list.n, t0, f_b2b, in_blank);
+        f_cost(f_list.bytes, f_list.n, &c, false);
+        memcpy(f_last.bytes, f_list.bytes, f_list.n);
+        f_last.n = f_list.n;
+        f_ran = true;
+        f_list.waiting = false;
+        f_taken++;
+    } else if (f_b2b && f_ran) {
+        f_reruns++;
+        f_run(f_last.bytes, f_last.n, t0, true, in_blank);
+        f_cost(f_last.bytes, f_last.n, &c, false);
+    } else {
+        c.real = 54 + 52;               // an empty list (0, 0)
+    }
+    *real = c.real;
 }
 
 static void f_frame(void) {
-    f_frames++;
-    if (f_list.waiting) {
-        f_run(f_list.bytes, f_list.n);
-        f_list.waiting = false;
-        f_taken++;
+    if (!f_b2b) {
+        f_frames++;
+        if (f_list.waiting) {
+            f_run(f_list.bytes, f_list.n, START_T, false, true);
+            f_list.waiting = false;
+            f_taken++;
+        }
+        return;
+    }
+    // the console's clock, in T: this NMI, and the list starts before the next
+    const uint64_t nmi = f_ticks++ * (uint64_t)FRAME_T;
+    const bool waited = f_next < 0;
+    if (waited) f_next = (int64_t)(nmi + START_T);
+    bool in_blank = waited;
+    while ((uint64_t)f_next < nmi + FRAME_T) {
+        f_frames++;                     // the kernel reads $FFF0+seq
+        uint32_t real;
+        f_take((uint32_t)((uint64_t)f_next - nmi), in_blank, &real);
+        uint64_t end = (uint64_t)f_next + real, next_nmi = nmi + FRAME_T;
+        bool past = false;
+        while (next_nmi <= end) { end += NMI_T; next_nmi += FRAME_T; past = true; }
+        if (!past) { f_next = -1; break; }  // it waits for the next NMI
+        f_next = (int64_t)(end + NOWAIT_T);
+        in_blank = false;
     }
 }
 
 void cvd_start(void) {}
 void cvd_stage(uint32_t n) { (void)n; }
-void cvf_start(const cvf_config_t *c) { (void)c; f_on = true; t_task = now_us; f_vram[0x1B00] = 0xD0; }
+void cvf_start(const cvf_config_t *c) {
+    (void)c;
+    f_on = true;
+    t_task = now_us;
+    f_vram[0x1B00] = 0xD0;
+#ifdef CVF_BACK_TO_BACK
+    f_b2b = true;
+#endif
+    if (getenv("PC_BACK_TO_BACK") && strcmp(getenv("PC_BACK_TO_BACK"), "0")) f_b2b = true;
+}
 void cvf_task(uint32_t t) { (void)t; t_task = now_us; console_step(); }
 void cvf_note(const char *s) { cvk_note(s); }
 void cvf_note_now(void) {}
@@ -486,10 +633,12 @@ bool cvf_publish(const uint8_t *list, size_t n) {
     memcpy(f_list.bytes, list, n);
     f_list.n = n;
     f_list.waiting = true;
+    f_cost_t c;
+    const uint8_t b2b = f_cost(list, n, &c, false) && f_is_b2b(&c);
 #ifdef CVF_CTRL2
-    list_record('F', 1, 0, list, n);    // (1: the kernel reads controller 2, for tools/mame-replay.sh)
+    list_record('F', 1, 0, list, n, b2b);   // (1: the kernel reads controller 2, for tools/mame-replay.sh)
 #else
-    list_record('F', false, 0, list, n);
+    list_record('F', false, 0, list, n, b2b);
 #endif
     return true;
 }
@@ -815,6 +964,8 @@ static void finish(void) {
     done = true;
     if (k_on) k_frame();                // a list still out runs
     if (f_on) f_frame();
+    if (f_b2b_lists)
+        logline("%u lists back to back, %u to %u T each by MAME's costs, %u run again", f_b2b_lists, f_b2b_min, f_b2b_max, f_reruns);
     logline("RESET: back to the menu, its bottom line \"%s\"", note);
     if (f_exit) f_exit();
     if (k_on && cvs_seen && memcmp(k_vram, cvs_seen->vdp.vram, VRAM_SIZE)) fail("the console's VRAM isn't what the SDK thinks it is");
@@ -823,6 +974,7 @@ static void finish(void) {
     if (k_on) printf(", %u sound changes", sounds_sent);
     if (f_on) printf(" (%u taken in %u frames; longest: blank part %u T of %d, list %u T of %d), %u PSG bytes", f_taken, f_frames,
                      f_worst_vb, VBLANK_T, f_worst_all, FRAME_T, f_psg_bytes);
+    if (f_b2b_lists) printf(", %u lists back to back (%u to %u T each by MAME's costs, %u run again)", f_b2b_lists, f_b2b_min, f_b2b_max, f_reruns);
     if (midi_bytes) printf(", %u MIDI bytes", midi_bytes);
     printf(", note \"%s\"%s\n", note, fails ? " -- FAILED" : "");
     fclose(log_file);

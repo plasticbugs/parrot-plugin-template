@@ -266,7 +266,7 @@ In a copy of the kit, read the file. Elsewhere, fetch it from
 | the README the cart shows (30 columns) | `docs/readme-spec.md` |
 | icons, screenshots | `docs/icons.md`, `docs/screenshots.md` |
 | releasing and the plugins site | `docs/release-checklist.md` |
-| one small working plugin per topic | `examples/` (screen, sound, usb-gamepad, usb-keyboard-mouse, usb-midi-out, sd-card, open-file, frames, psram) |
+| one small working plugin per topic | `examples/` (screen, sound, usb-gamepad, usb-keyboard-mouse, usb-midi-out, sd-card, open-file, frames, samples, two-controllers, psram) |
 | the SDK's calls | `sdk/firmware/revc/sdk/README.md` and its headers |
 | full plugins with source (NES, Game Boy, Master System, PC Engine, Vectrex, SCUMM, Lua, Text Editor) | `https://github.com/plasticbugs/parrot-plugin-*` |
 | arcade games with source (Donkey Kong, Pac-Man, Ms. Pac-Man, Q*bert, Time Pilot, Mr. Do!, Pole Position, Cloak & Dagger, Dragon's Lair, and the vector games Star Wars and The Empire Strikes Back, with speech) | `https://github.com/plasticbugs/parrot-plugin-dkong` and so on (`-pacman`, `-mspacman`, `-qbert`, `-timeplt`, `-mrdo`, `-polepos`, `-cloak`, `-dlair`, `-starwars`, `-esb`). Time Pilot's and Mr. Do!'s have their MAME tests |

@@ -11,7 +11,8 @@
 #                     of CVUSB_<FEATURE>=1 (PADS KEYBOARD MOUSE MIDI_IN
 #                     MIDI_OUT; PSRAM and CARD need no switch), and
 #                     CVF_CTRL2=1 if parrotcart_frames() has CONTROLLER2
-#                     (or there's a cvframes_controller2())
+#                     (or there's a cvframes_controller2()), and
+#                     CVF_BACK_TO_BACK=1 if it has BACK_TO_BACK
 #       ID_VAR        cvcart_plugin()'s ID, or ""
 #       NAME_VAR      its NAME, or "" (a ${VAR}: the file's last set(VAR ...))
 #
@@ -62,6 +63,10 @@ function(plugin_read dir features_var id_var name_var)
   # parrotcart_frames(TARGET CONTROLLER2): controller 2, for the frame kernel's model
   if(text MATCHES "parrotcart_frames[ \t]*\\([^)]*CONTROLLER2" OR text MATCHES "cvframes_controller2[ \t]*\\(")
     list(APPEND features "CVF_CTRL2=1")
+  endif()
+  # parrotcart_frames(TARGET BACK_TO_BACK): lists that run back to back, for the model's checks
+  if(text MATCHES "parrotcart_frames[ \t]*\\([^)]*BACK_TO_BACK")
+    list(APPEND features "CVF_BACK_TO_BACK=1")
   endif()
 
   # cvcart_plugin(TARGET ID id NAME "name" ...)

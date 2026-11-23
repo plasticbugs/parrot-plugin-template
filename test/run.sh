@@ -45,9 +45,13 @@ fi
 # run NAME DIR -- with PC_* in the environment; then the log must match each
 # remaining argument (a grep -E pattern). (sh keeps a function's PC_*=...
 # after it returns: they are cleared, so one run's script isn't the next's.)
+# A frame plugin whose lists run back to back says so in its CMakeLists.txt
+# (parrotcart_frames(TARGET BACK_TO_BACK)), or PC_BACK_TO_BACK=1 here: the
+# model and the MAME step then check that the console goes straight from
+# one list into the next, instead of failing lists longer than a frame.
 run() {
     run_one "$@"
-    unset PC_SCRIPT PC_END PC_CARD PC_OPEN PC_ID PC_NO_PSRAM PC_NO_LAUNCH
+    unset PC_SCRIPT PC_END PC_CARD PC_OPEN PC_ID PC_NO_PSRAM PC_NO_LAUNCH PC_BACK_TO_BACK
 }
 run_one() {
     name=$1; dir=$2; shift 2
@@ -57,12 +61,12 @@ run_one() {
     [ -d "$dir" ] || { echo "  (not here: $dir)"; return 0; }
     if ! "$kit/test/host/build.sh" "$dir" "$o/run" 2>"$o/build.log"; then
         echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1
-        unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END; return 0
+        unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END PC_BACK_TO_BACK; return 0
     fi
     if grep -v '^ld: warning' "$o/build.log" | grep -q 'warning:'; then echo "  FAIL: warnings:"; grep 'warning:' "$o/build.log" | sed 's/^/    /' | head; status=1; fi
     PC_OUT=$o "$o/run" || status=1
     # (sh keeps a function's VAR=value prefixes set after it: not into the next run)
-    unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END
+    unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END PC_BACK_TO_BACK
     for want in "$@"; do
         grep -Eq -- "$want" "$o/log.txt" || { echo "  FAIL: nothing in $o/log.txt matches: $want"; status=1; }
     done
@@ -73,6 +77,11 @@ run_one() {
             echo "  MAME: the real kernel shows the same picture ($(grep -o '[0-9]* of [0-9]* lists run' "$o/mame.log"))"
             if grep -q 'longer than their TV frame' "$o/mame.log" && ! grep -q 'replay: 0 lists took longer' "$o/mame.log"; then
                 echo "  FAIL in MAME: $(grep 'longer than' "$o/mame.log")"; status=1
+            fi
+            if grep -q 'lists back to back' "$o/mame.log"; then
+                if grep -q ' 0 of them followed by a wait' "$o/mame.log"; then
+                    echo "  MAME: $(grep -o '[0-9]* lists back to back' "$o/mame.log"), none followed by a wait"
+                else echo "  FAIL in MAME: $(grep 'back to back' "$o/mame.log" | sed 's/^replay: //')"; status=1; fi
             fi
         else
             echo "  FAIL in MAME:"; tail -3 "$o/mame.log" | sed 's/^/    /'; status=1
@@ -120,6 +129,28 @@ card_check() {
     detach "$mnt"
     if [ "$got" = "512 $magic $runs" ]; then echo "  macOS: fsck clean, $save is 512 bytes, run $runs"
     else echo "  FAIL: $save on the Mac: $got (wanted run $runs)"; status=1; fi
+}
+
+# test/b2b, made wrong on purpose: the model must fail it with PATTERN
+# (b2b_fails NAME LIST_T BLANK_WRITES PATTERN), and MAME see the gaps
+b2b_fails() {
+    o=$out/$1
+    rm -rf "$o"; mkdir -p "$o"
+    printf '%s\n' "$1"
+    "$kit/test/host/build.sh" "$kit/test/b2b" "$o/run" 2>"$o/build.log" || { echo "  the Mac build FAILED"; status=1; return 0; }
+    if PC_OUT=$o PC_END=500 PC_BACK_TO_BACK=1 PC_B2B_T=$2 PC_B2B_VB=$3 "$o/run" >"$o/out.txt"; then
+        echo "  FAIL: the model passed it"; status=1
+    elif grep -q "$4" "$o/out.txt"; then
+        echo "  the model fails it, as it should: $(grep -o "$4" "$o/out.txt" | head -1)"
+    else
+        echo "  FAIL: the model failed it for something else:"; head -3 "$o/out.txt" | sed 's/^/    /'; status=1
+    fi
+    if [ $have_mame = 1 ] && [ "$3" = 0 ]; then
+        "$kit/tools/mame-replay.sh" "$o/lists.bin" "$o" 60 >"$o/mame.log" 2>&1 || true
+        if grep -q ' [1-9][0-9]* of them followed by a wait' "$o/mame.log"; then
+            echo "  MAME: $(grep -o '[0-9]* of them followed by a wait' "$o/mame.log")"
+        else echo "  FAIL in MAME: no wait seen"; tail -3 "$o/mame.log" | sed 's/^/    /'; status=1; fi
+    fi
 }
 
 # ---- the plugin in src/ (tools/new-plugin.py rewrites this part) ----
@@ -179,6 +210,19 @@ fi
 # controller 2 (CONTROLLER2, cvf_input2()) and USB pad 1's two sticks; then in
 # MAME, every switch of both controllers through the frame kernel's reports,
 # with CONTROLLER2 and without it (tools/mame-controllers.sh)
+if wanted samples; then
+    # keypad 6 (440 Hz) and fire (the drum) as samples, the lists back to back
+    PC_END=3000 PC_SCRIPT="300:key=6 500:key= 1500:joy=fire 1600:joy=" \
+        run samples "$kit/examples/samples" 'psg 90 BB D8 81 00 A1 00 C1 00 FF' 'lists back to back, .* 0 run again'
+fi
+if wanted back-to-back; then
+    # the models' checks on lists that run back to back (test/b2b/main.c):
+    # long enough passes; short of a frame, or with video writes in the
+    # blank part, fails, and MAME sees the short one's gaps too
+    PC_BACK_TO_BACK=1 PC_END=500 run b2b-long "$kit/test/b2b" '30 lists back to back'
+    b2b_fails b2b-short 59200 0 'less than a frame: the console waits'
+    b2b_fails b2b-blank 59700 1 'video RAM in its blank part'
+fi
 if wanted two-controllers; then
     PC_END=3000 PC_SCRIPT="$(cat "$kit/examples/two-controllers/test.script")" \
         run two-controllers "$kit/examples/two-controllers" 'note "C1 JE F2 K3, C2 J3 F1 K6"' 'note "C1 JF F3 KF, C2 JF F3 KF"'
