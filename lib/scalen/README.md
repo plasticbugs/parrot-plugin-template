@@ -26,11 +26,6 @@ target_sources(mygame PRIVATE ${PARROTCART_DIR}/lib/scalen/scalen.c)
 scaled screen. `scalen_row()` and `scalen_line()` are the two halves, for
 redrawing only the places that changed.
 
-The smoke test:
-
-```sh
-cc -std=c11 -Wall -Wextra -I lib -I sdk/firmware/revc/sdk lib/scalen/test.c \
-    lib/scalen/scalen.c sdk/firmware/revc/sdk/cvscale.c -o /tmp/scalen-test && /tmp/scalen-test
-```
+`lib/test.sh` runs its smoke test, `test.c`.
 
 It's the kit's own code (MIT).

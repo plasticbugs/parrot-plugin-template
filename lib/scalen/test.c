@@ -1,6 +1,4 @@
-// lib/scalen's smoke test (the kit's own):
-//   cc -std=c11 -Wall -Wextra -I lib -I sdk/firmware/revc/sdk lib/scalen/test.c \
-//       lib/scalen/scalen.c sdk/firmware/revc/sdk/cvscale.c -o /tmp/scalen-test && /tmp/scalen-test
+// lib/scalen's smoke test (the kit's own), run by lib/test.sh
 // N = 4k to 3k must be cvscale34's picture exactly; other sizes must keep
 // a one-pixel stroke, spread the pairs evenly, and give the same result a
 // band at a time as all at once.

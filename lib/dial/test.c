@@ -1,5 +1,4 @@
-// lib/dial's smoke test (the kit's own):
-//   cc -std=c11 -Wall -Wextra -I lib -I sdk/firmware/revc/sdk lib/dial/test.c -o /tmp/dial-test && /tmp/dial-test
+// lib/dial's smoke test (the kit's own), run by lib/test.sh
 #include <stdio.h>
 
 #include "dial/dial.h"

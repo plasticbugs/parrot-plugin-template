@@ -410,7 +410,17 @@ either way. Robotron keeps MAME's `nvram` file as `/ROBOTRON/NVRAM`.
 
 Build the board (its CPUs, memory map, inputs and video and sound
 registers) as code that compiles both for the cart and for the Mac, and
-test it on the Mac against MAME's driver for the game, run headless:
+test it on the Mac against MAME's driver for the game, run headless.
+
+Start from the kit's `lib/` (`lib/README.md`): the Z80, 8035, 6809 and
+6800 as MAME 0.288 runs them, the SP0250 speech chip, and MAME's
+scheduler for a board with several CPUs and timers. Each was checked
+against MAME instruction by instruction inside a real plugin, so a
+mismatch is in your board, not the CPU. They run one CPU or several from
+one copy of the code (one Z80 core for both of Time Pilot's Z80s fits in
+RAM once). The board's `.c` file sets each CPU's memory map and ports as
+macros and includes the core, so its reads and writes are inlined.
+
 
 - **Trace**: MAME's debugger, headless (`-debug -debugger none` with a
   `-debugscript` that turns on `trace` for each CPU), logs every
@@ -510,8 +520,8 @@ runs far faster than the M33. `tools/armcount/` can: put a list's work in
 a copy of its `bench.c`, build it with `build.sh` and the plugin's flags,
 and `armcount.py` runs it in Unicorn and charges the M33's book times per
 instruction (`docs/testing.md`, "Fast enough on the cart"). Time Pilot averages 12.8 ms a list this way, worst
-15.5, and Donkey Kong about 14. Keep one Z80 core for both
-of a board's Z80s, so it fits in RAM once. If a busy picture can't keep
+15.5, and Donkey Kong about 14. Keep one CPU core for both
+of a board's Z80s (`lib/z80` does), so it fits in RAM once. If a busy picture can't keep
 up, send part of it now and the rest next list (Donkey Kong caps a
 picture at 96 changed tiles) rather than slow the game. Count late lists
 in the plugin's note (`cvf_note`), since only the cart has the last word.

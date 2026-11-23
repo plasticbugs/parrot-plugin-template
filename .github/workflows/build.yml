@@ -39,6 +39,9 @@ jobs:
           # (the card examples need macOS's hdiutil, and MAME a BIOS: not here)
           NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram usb
 
+      - name: lib/'s smoke tests (the MAME cores and helpers)
+        run: lib/test.sh
+
       - name: The Lua plugin, and scripts on the console's model
         run: |
           cmake -S lua -B build-lua -G Ninja -DPICO_SDK_PATH="$HOME/pico-sdk"
