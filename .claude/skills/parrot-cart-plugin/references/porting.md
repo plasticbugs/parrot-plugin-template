@@ -154,6 +154,9 @@ picture.
   colour numbers, any 8-bit values), so scale first and map to the
   TMS9918's colours after. A 224x256 picture becomes 168x192, and a
   240x256 one 180x192, with black at the sides.
+  For other sizes (278 columns to 256, 215 lines to 179), the kit's
+  `lib/scalen` does the same with the pairs spread evenly, and can make
+  one 8-line band at a time to save RAM.
 
   ```c
   // w x h pens (multiples of 4) to 3w/4 x 3h/4; columns cx0 to cx1 - 1 only (0, w: all)

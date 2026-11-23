@@ -116,6 +116,7 @@ screen plugin adds `${PARROTCART_SDK}/sdk/cvscale.c` to its sources.
 |---|---|
 | `cvscale34(src, sstride, w, h, cx0, cx1, dst, dstride)` | `w` x `h` pens (multiples of 4) to 3/4 of that each way. Of each 4 lines, then each 4 columns, it keeps the 1st and 4th and makes the middle two one, so 1-pixel strokes and edges stay. Only columns `cx0` to `cx1 - 1` (multiples of 4; `0, w` for all), which land at `3 * cx0 / 4` in `dst`: a piece comes out as the whole picture would have it there |
 | `cvscale_pick()`, `cvscale_mid()` | the same rules, inline, for a plugin with its own loop |
+| `scalen()` (`lib/scalen/scalen.h`, the kit's, not the SDK's) | N columns to M and N lines to M (M <= N <= 2M) by the same rules, the pairs spread evenly, a band of lines at a time if you like. Add `${PARROTCART_DIR}/lib/scalen/scalen.c` to the sources |
 
 Pens are any 8-bit values, compared only for being the same, so scale the
 machine's colour numbers and map them to the TMS9918's after. Make pen 0
