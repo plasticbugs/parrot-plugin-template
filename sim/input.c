@@ -8,6 +8,9 @@
 //                                the number keys, - and =), and the first
 //                                game pad (d-pad or left stick, face
 //                                buttons, Back and Start as * and #)
+//   the console's controller 2   the keyboard (I J K L, N and M, and the
+//                                number keys, - and = with Shift), and
+//                                the second game pad, the same way
 //   USB pads 1 and 2 (PADS)      the first two game pads, each in the slot
 //                                it took when it came, as cvpad.c's slots;
 //                                all their buttons, both sticks, and what
@@ -44,6 +47,7 @@ static SDL_Window *win;
 static SDL_Gamepad *slot[SLOTS];            // USB pads 1 and 2
 static int role = ROLE_CONSOLE;
 static int last_key = -1;                   // the keypad key pressed last on the keyboard
+static int last_key2 = -1;                  // ...with Shift: controller 2's
 static uint8_t mouse_held, mouse_buttons;   // the mouse's buttons, by their events; and as last sent
 static bool scripted;                       // headless: the script made devices up (input_script)
 
@@ -238,7 +242,10 @@ void input_poll(sim_keys_t *k) {
         case SDL_EVENT_KEY_DOWN:
             if (sim_key(e.key.scancode, k) || e.key.repeat) break;     // (a USB keyboard repeats nothing)
             if (role == ROLE_USB_KEYBOARD && usb_usage(e.key.scancode)) model_usb_key((uint8_t)e.key.scancode, true);
-            else if (role == ROLE_CONSOLE && keypad_key(e.key.scancode) >= 0) last_key = keypad_key(e.key.scancode);
+            else if (role == ROLE_CONSOLE && keypad_key(e.key.scancode) >= 0) {
+                if (e.key.mod & SDL_KMOD_SHIFT) last_key2 = keypad_key(e.key.scancode);
+                else last_key = keypad_key(e.key.scancode);
+            }
             break;
         case SDL_EVENT_KEY_UP:
             if (role == ROLE_USB_KEYBOARD && usb_usage(e.key.scancode)) model_usb_key((uint8_t)e.key.scancode, false);
@@ -276,45 +283,59 @@ void input_poll(sim_keys_t *k) {
     if (opt.headless && !scripted) return;  // headless: the models have the script's own words
     const bool *ks = SDL_GetKeyboardState(NULL);
 
-    // the console's controller 1: the keyboard in its role, and the first pad
-    uint8_t held = 0;
-    int key = -1;
+    // the console's controllers: the keyboard in its role (controller 2 on
+    // I J K L, N, M, and the number keys with Shift), and the first two pads
+    uint8_t held = 0, held2 = 0;
+    int key = -1, key2 = -1;
     if (role == ROLE_CONSOLE) {
+        const bool shift = ks[SDL_SCANCODE_LSHIFT] || ks[SDL_SCANCODE_RSHIFT];
         if (ks[SDL_SCANCODE_UP] || ks[SDL_SCANCODE_W]) held |= WIRED_UP;
         if (ks[SDL_SCANCODE_RIGHT] || ks[SDL_SCANCODE_D]) held |= WIRED_RIGHT;
         if (ks[SDL_SCANCODE_DOWN] || ks[SDL_SCANCODE_S]) held |= WIRED_DOWN;
         if (ks[SDL_SCANCODE_LEFT] || ks[SDL_SCANCODE_A]) held |= WIRED_LEFT;
         if (ks[SDL_SCANCODE_Z]) held |= WIRED_FIRE_L;
         if (ks[SDL_SCANCODE_X]) held |= WIRED_FIRE_R;
-        if (last_key >= 0 && !keypad_held(ks, last_key)) last_key = -1;
-        if (last_key < 0)                   // let go of the last one: another still held?
-            for (int s = 0; s < SDL_SCANCODE_COUNT && last_key < 0; s++)
-                if (ks[s] && keypad_key((SDL_Scancode)s) >= 0) last_key = keypad_key((SDL_Scancode)s);
+        if (ks[SDL_SCANCODE_I]) held2 |= WIRED_UP;
+        if (ks[SDL_SCANCODE_L]) held2 |= WIRED_RIGHT;
+        if (ks[SDL_SCANCODE_K]) held2 |= WIRED_DOWN;
+        if (ks[SDL_SCANCODE_J]) held2 |= WIRED_LEFT;
+        if (ks[SDL_SCANCODE_N]) held2 |= WIRED_FIRE_L;
+        if (ks[SDL_SCANCODE_M]) held2 |= WIRED_FIRE_R;
+        if (last_key >= 0 && (shift || !keypad_held(ks, last_key))) last_key = -1;
+        if (last_key2 >= 0 && (!shift || !keypad_held(ks, last_key2))) last_key2 = -1;
+        int *last = shift ? &last_key2 : &last_key;
+        if (*last < 0)                      // let go of the last one: another still held?
+            for (int s = 0; s < SDL_SCANCODE_COUNT && *last < 0; s++)
+                if (ks[s] && keypad_key((SDL_Scancode)s) >= 0) *last = keypad_key((SDL_Scancode)s);
         key = last_key;
+        key2 = last_key2;
     }
     gamepad_t usb[SLOTS];
-    bool console_pad = false;
+    int console_pads = 0;
     for (int i = 0; i < SLOTS; i++) {
         memset(&usb[i], 0, sizeof usb[i]);
         if (!slot[i]) continue;
         read_pad(slot[i], &usb[i]);
-        if (console_pad) continue;          // the first pad there is the controller too
-        console_pad = true;
+        // the first pad there is controller 1 too, the second controller 2
+        uint8_t *h = console_pads ? &held2 : &held;
+        int *k = console_pads ? &key2 : &key;
+        console_pads++;
         const gamepad_t *g = &usb[i];
         const uint32_t b = g->buttons;
-        if (b & GP_UP || g->ly > 1024) held |= WIRED_UP;
-        if (b & GP_DOWN || g->ly < -1024) held |= WIRED_DOWN;
-        if (b & GP_LEFT || g->lx < -1024) held |= WIRED_LEFT;
-        if (b & GP_RIGHT || g->lx > 1024) held |= WIRED_RIGHT;
-        if (b & (GP_SOUTH | GP_WEST)) held |= WIRED_FIRE_L;
-        if (b & (GP_EAST | GP_NORTH)) held |= WIRED_FIRE_R;
-        if (key < 0 && b & GP_MINUS) key = WIRED_STAR;
-        if (key < 0 && b & GP_PLUS) key = WIRED_HASH;
+        if (b & GP_UP || g->ly > 1024) *h |= WIRED_UP;
+        if (b & GP_DOWN || g->ly < -1024) *h |= WIRED_DOWN;
+        if (b & GP_LEFT || g->lx < -1024) *h |= WIRED_LEFT;
+        if (b & GP_RIGHT || g->lx > 1024) *h |= WIRED_RIGHT;
+        if (b & (GP_SOUTH | GP_WEST)) *h |= WIRED_FIRE_L;
+        if (b & (GP_EAST | GP_NORTH)) *h |= WIRED_FIRE_R;
+        if (*k < 0 && b & GP_MINUS) *k = WIRED_STAR;
+        if (*k < 0 && b & GP_PLUS) *k = WIRED_HASH;
     }
-    // (headless, the script's joy= and key= have it, but for while a made-up pad is in)
-    static bool pad_had;
-    if (!opt.headless || console_pad || pad_had) model_console(held, key);
-    pad_had = console_pad;
+    // (headless, the script's joy= key= joy2= key2= have them, but for while a made-up pad is in)
+    static int pads_had;
+    if (!opt.headless || console_pads || pads_had) model_console(held, key);
+    if (!opt.headless || console_pads > 1 || pads_had > 1) model_console2(held2, key2);
+    pads_had = console_pads;
 
     // USB pads: the desktop's, pad 1 with the keyboard in its "USB pad" role
     if (role == ROLE_USB_PAD) keyboard_pad(ks, &usb[0]);

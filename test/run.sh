@@ -176,6 +176,20 @@ if wanted frames; then
     PC_END=5000 PC_SCRIPT="1000:snap=early 2000:joy=left 2100:joy= 3000:joy=up 3100:joy=" \
         run frames "$kit/examples/frames" 'psg 8E 0F 92 A0 00 BF C0 00 DF FF' 'psg 8E 0F 9F A0 00 BF C0 00 DF FF'
 fi
+# controller 2 (CONTROLLER2, cvf_input2()) and USB pad 1's two sticks; then in
+# MAME, every switch of both controllers through the frame kernel's reports,
+# with CONTROLLER2 and without it (tools/mame-controllers.sh)
+if wanted two-controllers; then
+    PC_END=3000 PC_SCRIPT="$(cat "$kit/examples/two-controllers/test.script")" \
+        run two-controllers "$kit/examples/two-controllers" 'note "C1 JE F2 K3, C2 J3 F1 K6"' 'note "C1 JF F3 KF, C2 JF F3 KF"'
+    if [ $have_mame = 1 ]; then
+        for k in controller2 plain; do
+            r=$("$kit/tools/mame-controllers.sh" "$out/two-controllers/$k" $k 2>&1 | tail -2)
+            case $r in *"controllers: ok"*) echo "  MAME, the kernel's reports ($k): $(echo "$r" | head -1 | sed 's/^controllers: //')" ;;
+                *) echo "  FAIL in MAME, the kernel's reports ($k):"; echo "$r" | sed 's/^/    /'; status=1 ;; esac
+        done
+    fi
+fi
 if wanted psram; then
     PC_END=60000 run psram "$kit/examples/psram" 'note "PSRAM example: 8 MB right"'
     PC_NO_PSRAM=1 PC_END=1000 run psram-missing "$kit/examples/psram" 'note "PSRAM example: no PSRAM"'

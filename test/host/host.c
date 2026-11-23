@@ -23,6 +23,7 @@
 // PC_SCRIPT is "MS:WHAT=VALUE ..." in time order:
 //   joy=up+fire        the stick and fire buttons held (up down left right fire fire2); joy= lets go
 //   key=5              the keypad key held (0-9 * #); key= lets go
+//   joy2=... key2=...  the same for controller 2 (the frame kernel reads it with CONTROLLER2)
 //   pad=south+left     a USB pad plugged in, holding these (up down left right south east west
 //                      north l r zl zr minus plus home capture ls rs); pad=off unplugs it
 //   lstick=X,Y rstick=X,Y   its sticks, -2048..2047
@@ -43,6 +44,11 @@
 // does) and builds this file with the same CVUSB_* switches. The port is
 // chosen as cvusb.c chooses it: with MIDI_OUT, a device first, taken by a
 // computer 0.3 s in, and a host at 1.5 s if none took it.
+//
+// A frame plugin built with parrotcart_frames(TARGET CONTROLLER2) is built
+// here with CVF_CTRL2 (plugin.cmake reads it): its kernel reads controller
+// 2 too, which puts each list 179 T later in its frame (660 for the start,
+// not 480), and lists.bin says so for tools/mame-replay.sh.
 //
 // It exits 1 if the plugin broke a rule the models can see: a bad list, a
 // list sent before the last was taken, three colours in an 8-pixel run, a
@@ -130,6 +136,8 @@ void sleep_us(uint64_t us) { now_us += us; }
 // ---- the inputs ------------------------------------------------------------------
 static uint8_t joy_held;        // wired.h's WIRED_* order: up right down left fire fire2
 static int key_held = -1;
+static uint8_t joy2_held;       // controller 2's, the same way
+static int key2_held = -1;
 static bool pad_in[CVUSB_PAD_MAX];      // USB pads 1 and 2
 static gamepad_t pad_state[CVUSB_PAD_MAX];
 static const char *pad_kind[CVUSB_PAD_MAX] = {"SWITCH PRO", "SWITCH PRO"};
@@ -177,6 +185,8 @@ static void event(const char *what, const char *v) {
     logline("script %s=%s", what, v);
     if (!strcmp(what, "joy")) joy_held = (uint8_t)names(v, joy, 6);
     else if (!strcmp(what, "key")) key_held = !*v ? -1 : *v == '*' ? 10 : *v == '#' ? 11 : *v - '0';
+    else if (!strcmp(what, "joy2")) joy2_held = (uint8_t)names(v, joy, 6);
+    else if (!strcmp(what, "key2")) key2_held = !*v ? -1 : *v == '*' ? 10 : *v == '#' ? 11 : *v - '0';
     else if ((k = pad_of(what, "pad", "")) >= 0) {
         pad_in[k] = strcmp(v, "off") != 0;
         if (pad_in[k]) pad_state[k].buttons = names(v, pad, 18);
@@ -386,6 +396,11 @@ size_t cvs_update(cvs_t *s, cvs_draw_fn draw, void *ctx, uint8_t *list, size_t m
 // ---- the frame kernel (cvframes.h; gbkernel.asm) ---------------------------------
 #define VBLANK_T (70 * 228)
 #define FRAME_T  (262 * 228)
+#ifdef CVF_CTRL2
+#define START_T  660                    // the list starts ~660 T after the NMI: 179 more, for controller 2
+#else
+#define START_T  480                    // the list starts ~480 T after the NMI
+#endif
 static uint8_t f_vram[0x4000], f_reg[8] = {0x02, 0xE0, 0x06, 0xFF, 0x03, 0x36, 0x07, 0x01};
 static struct { bool waiting; size_t n; uint8_t bytes[CVF_LIST_MAX]; } f_list;
 static uint32_t f_frames, f_taken, f_worst_vb, f_worst_all, f_psg_bytes;
@@ -393,7 +408,7 @@ static void (*f_exit)(void);
 
 static void f_run(const uint8_t *s, size_t n) {
     size_t i = 0;
-    uint32_t t = 480, vb = 0;           // the list starts ~480 T after the NMI
+    uint32_t t = START_T, vb = 0;
     bool vblank = true;
     for (;;) {
         if (i >= n) { fail("a frame list without its two ends"); return; }
@@ -452,12 +467,18 @@ bool cvf_console_on(void) { return true; }
 // the model's bus is clean, so nothing
 void cvf_bus_counts(uint32_t *unsel, uint32_t *early, uint32_t *unhdr) { *unsel = *early = *unhdr = 0; }
 
-void cvf_input(uint8_t *joy, uint8_t *fire, uint8_t *key) {
+// a controller as the frame kernel reports it (gbkernel.asm), low = pressed
+static void f_controller(uint8_t held, int key_down, uint8_t *joy, uint8_t *fire, uint8_t *key) {
     static const uint8_t lines[12] = {10, 13, 7, 12, 2, 3, 14, 5, 1, 11, 9, 6};
-    *joy = (uint8_t)(~joy_held & 15);
-    *fire = (uint8_t)((joy_held & 16 ? 0 : 1) | (joy_held & 32 ? 0 : 2));
-    *key = key_held < 0 ? 15 : lines[key_held];
+    *joy = (uint8_t)(~held & 15);
+    *fire = (uint8_t)((held & 16 ? 0 : 1) | (held & 32 ? 0 : 2));
+    *key = key_down < 0 ? 15 : lines[key_down];
 }
+
+void cvf_input(uint8_t *joy, uint8_t *fire, uint8_t *key) { f_controller(joy_held, key_held, joy, fire, key); }
+#ifdef CVF_CTRL2
+void cvf_input2(uint8_t *joy, uint8_t *fire, uint8_t *key) { f_controller(joy2_held, key2_held, joy, fire, key); }
+#endif
 
 bool cvf_publish(const uint8_t *list, size_t n) {
     if (f_list.waiting) return false;
@@ -465,7 +486,11 @@ bool cvf_publish(const uint8_t *list, size_t n) {
     memcpy(f_list.bytes, list, n);
     f_list.n = n;
     f_list.waiting = true;
+#ifdef CVF_CTRL2
+    list_record('F', 1, 0, list, n);    // (1: the kernel reads controller 2, for tools/mame-replay.sh)
+#else
     list_record('F', false, 0, list, n);
+#endif
     return true;
 }
 

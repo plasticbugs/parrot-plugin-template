@@ -23,9 +23,12 @@ out=$(cd "$out" && pwd)
 lists=$(cd "$(dirname "$lists")" && pwd)/$(basename "$lists")
 sdk=$kit/sdk
 
-# the kernel the lists are for: its first record says ('K' the screen kernel, 'F' the frame kernel)
+# the kernel the lists are for: its first record says ('K' the screen kernel, 'F' the frame kernel,
+# and for 'F' a second byte of 1 when the plugin has CONTROLLER2: the kernel that reads controller 2)
 if [ "$(head -c 1 "$lists")" = F ]; then
-    (cd "$out/mame" && sjasmplus --nologo "$sdk/gbcv/kernel/gbkernel.asm" >/dev/null 2>&1)
+    define=
+    [ "$(head -c 2 "$lists" | tail -c 1 | od -An -tu1 | tr -d ' ')" = 1 ] && define=-DCONTROLLER2
+    (cd "$out/mame" && sjasmplus --nologo $define "$sdk/gbcv/kernel/gbkernel.asm" >/dev/null 2>&1)
     cart=$out/mame/gbkernel.bin
 else
     (cd "$out/mame" && sjasmplus --nologo "$sdk/firmware/revc/midihello/midihello.asm" >/dev/null 2>&1)

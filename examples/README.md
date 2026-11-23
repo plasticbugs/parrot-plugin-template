@@ -15,6 +15,7 @@ of CMake.
 | `sd-card` | listing a folder, reading a file, and making, writing and reading back a save file | `cvsd`, `fsro.h` |
 | `open-file` | declaring an extension (`.txt`) and getting the file from the menu | `cvlaunch.h`, `cvsd_open_launched` |
 | `frames` | a whole picture every TV frame, as command lists with a time budget | `cvframes`, `cvdiag` |
+| `two-controllers` | both of the console's controllers and USB pad 1's two sticks, on the frame kernel | `cvf_input2`, `cvusb` |
 | `psram` | the 8 MB PSRAM | `cvpsram` |
 
 ```sh
@@ -38,13 +39,14 @@ the ID.
 ## Two kinds of plugin
 
 Plugins on the screen kernel (`parrotcart_screen()`, used by every
-example except `frames`) draw into a canvas whenever they like, and the
+example except `frames` and `two-controllers`) draw into a canvas whenever they like, and the
 SDK sends the console what changed, one list at a time. Sound is the
 chip's 10 bytes, sent when they change, and the console's controller
 comes in as reports. The screen kernel is a good fit for tools, menus,
 viewers, players, and turn-based or slow-moving games.
 
-Plugins on the frame kernel (`parrotcart_frames()`, used by `frames`)
+Plugins on the frame kernel (`parrotcart_frames()`, used by `frames` and
+`two-controllers`)
 give the console one command list every TV frame, and choose exactly
 which bytes of video memory and which sound-chip bytes go out in it. The
 frame kernel is a good fit for emulators, video and fast games. It has

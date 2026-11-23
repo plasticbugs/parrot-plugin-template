@@ -3,7 +3,7 @@
 Game Boy kernel's own bus cycles.
 
     python3 -I cvframes_sim.py PLUGIN.elf [--kernel gbkernel.bin] [--lists lists.bin]
-            [--frames N] [--bounce [--hit P]] [--publish-us N] [--seed N] [--quiet]
+            [--frames N] [--bounce [--hit P]] [--publish-us N] [--seed N] [--idle] [--quiet]
 
 The console's side is the kernel itself (gbcv/kernel/gbkernel.asm, the image
 the plugin's build made: PLUGIN.elf's folder has cvframes/gbkernel.bin),
@@ -26,8 +26,15 @@ still running, as when core 0 is a list ahead).
 
 Checked, for every cart read: the right byte on the cart's pins from set-up
 time before the Z80 samples it; and that every select was taken, once, each
-frame's list with it, the controller's nibbles as reported, and nothing
-else. The smallest margins are printed.
+frame's list with it, the controllers' nibbles as reported (the controllers
+are pressed at random, a new state each frame; --idle leaves them alone,
+as this model did before it checked them, for runs to compare with its
+older ones), and nothing else. The smallest margins are printed.
+
+A plugin built with cvframes_controller2() (its bus loop's select mask
+leaves out A6) is run against the kernel built with CONTROLLER2
+(cvframes/controller2/gbkernel.bin), whose reports of controller 2 at
+$FF80-$FFAF are checked as well.
 
 --bounce: what the console's captures show as well (CVSERVE.md): the address
 lines and nCART may read wrong at the cart's pins, either way, for 30 ns from
@@ -115,9 +122,20 @@ def read_lists(path, first, n):
 
 
 # ---- the console: gbkernel, as bus cycles -------------------------------------------
+class Bus(cs.Bus):
+    """cvserve_sim.py's bus, with controller 2's reports ($FF80-$FFBF) as selects too"""
+    def cycle(self, kind, a, refresh=0x0000):
+        n0 = len(self.ev)
+        super().cycle(kind, a, refresh)
+        if kind != 'io' and a >= 0x8000 and (a & 0x7fc0) == 0x7f80:
+            nc = [t for t, k, x in self.ev[n0:] if k == 15]
+            self.selects.append((nc[0], nc[1], (a & 127) - 64))       # (n: -64..-1)
+
+
 class Kernel:
-    def __init__(self, image, bus, lists, rng, psg_wait=29):
+    def __init__(self, image, bus, lists, rng, psg_wait=29, seed=0, idle=False):
         self.img, self.bus, self.lists, self.rng, self.psg_wait = image, bus, lists, rng, psg_wait
+        self.prng = None if idle else random.Random(seed + 2000)   # the controllers' (their own)
         self.ram = bytearray(0x400)
         self.a = self.b = self.c = self.d = self.e = self.h = self.l = 0
         self.z = False
@@ -127,12 +145,14 @@ class Kernel:
         self.frame = -1                    # the list at $C000
         self.exp = []                      # the byte each of bus.checks should read (None: any)
         self.frame_sel = []                # (index into bus.selects, frame) of each frame's start
-        self.reports = []                  # (index into bus.selects, slot, nibble)
+        self.reports = []                  # (index into bus.selects, slot, nibble): slot (address - $FF80) >> 4
         self.ended = False
+        self.key_mode = False              # the controllers' mode, by the last strobe ($80 keypad, $C0 joystick)
+        self.pads = [0x7f, 0x7f, 0x7f, 0x7f]   # what ports $FC and $FF read, joystick then keypad mode
 
     def peek(self, a):
         if a >= 0xc000:
-            if a >= 0xffc0: return 0
+            if a >= 0xff80: return 0
             l = self.lists[self.frame] if 0 <= self.frame < len(self.lists) else b'\0\0'
             return l[a - 0xc000] if a - 0xc000 < len(l) else 0
         if a >= 0x8000: return self.img[a - 0x8000]
@@ -143,13 +163,15 @@ class Kernel:
         n0, s0 = len(self.bus.checks), len(self.bus.selects)
         v = self.peek(a)
         self.bus.cycle(kind, a, refresh)
-        if len(self.bus.checks) > n0: self.exp.append(None if a >= 0xffc0 or (a >= 0xc000 and self.frame >= len(self.lists)) else v)
+        if len(self.bus.checks) > n0: self.exp.append(None if a >= 0xff80 or (a >= 0xc000 and self.frame >= len(self.lists)) else v)
         if len(self.bus.selects) > s0:
-            n = a & 63
-            if n >= 48:
+            n = a - 0xff80
+            if n >= 112:
                 self.frame += 1
                 self.frame_sel.append((s0, self.frame))
                 if self.frame >= len(self.lists): self.ended = True
+                # the controllers, pressed some new way for the next frame (low = pressed)
+                if self.prng: self.pads = [0x80 | 0x30 | self.prng.randrange(128) & 0x4f for _ in range(4)]
             else: self.reports.append((s0, n >> 4, n & 15))
         return v
 
@@ -172,6 +194,8 @@ class Kernel:
     def io_out(self, port_hi, port, v):
         self.bus.cycle('io', port_hi << 8 | port)
         if port == 0xff: self.bus.idle(self.psg_wait)       # the SN76489's READY holds the Z80
+        if port & 0xe0 == 0x80: self.key_mode = True
+        if port & 0xe0 == 0xc0: self.key_mode = False
 
     def io_in(self, port_hi, port):
         self.bus.cycle('io', port_hi << 8 | port)
@@ -179,7 +203,9 @@ class Kernel:
             v = 0x80 if self.F else 0
             self.F = False
             return v
-        return 0x7f                        # the controller: nothing pressed
+        if port & 0xe0 == 0xe0:            # a controller: $FC 1, $FF 2
+            return self.pads[(2 if port & 2 else 0) + self.key_mode]
+        return 0x7f
 
     def hl(self): return self.h << 8 | self.l
     def set_hl(self, v): self.h, self.l = v >> 8 & 255, v & 255
@@ -225,11 +251,16 @@ class Kernel:
         elif op == 0x0e: self.c = self.imm()
         elif op == 0x5f: self.e = self.a
         elif op == 0x57: self.d = self.a
+        elif op == 0x4f: self.c = self.a
+        elif op == 0x47: self.b = self.a
         elif op == 0x6f: self.l = self.a
         elif op == 0x7b: self.a = self.e
         elif op == 0x7a: self.a = self.d
+        elif op == 0x79: self.a = self.c
+        elif op == 0x78: self.a = self.b
         elif op == 0x07: self.a = (self.a << 1 | self.a >> 7) & 255
         elif op == 0xb3: self.a |= self.e; self.z = self.a == 0
+        elif op == 0xb1: self.a |= self.c; self.z = self.a == 0
         elif op == 0xe6: self.a &= self.imm(); self.z = self.a == 0
         elif op == 0xf6: self.a |= self.imm(); self.z = self.a == 0
         elif op == 0x23: bus.idle(2); self.set_hl(self.hl() + 1 & 0xffff)
@@ -280,10 +311,21 @@ class CPU(cs.CPU):
         return super().rd(a, size)
 
 
-def run(elf, kernel, lists, seed, bounce=0.0, publish_us=300, quiet=False, psg_wait=29, slack=0.0):
+def is_ctrl2(elf):
+    """built with cvframes_controller2(): cvf_serve2's select mask (r4) leaves A6 (GPIO 10) out"""
+    probe = cs.CPU(elf, [])
+    if 'cvf_serve2' not in probe.sym: return False
+    c = cs.CPU(elf, ['cvf_serve2'])
+    for mn, ops, size, _ in c.code.values():
+        m = _re.match(r'r4, #(\d+)', ops)
+        if mn.startswith('movw') and m: return not int(m.group(1)) >> 10 & 1
+    raise SystemExit('cvframes_sim: no select mask in cvf_serve2')
+
+
+def run(elf, kernel, lists, seed, bounce=0.0, publish_us=300, quiet=False, psg_wait=29, slack=0.0, idle=False):
     rng = random.Random(seed)
-    bus = cs.Bus('nominal', rng)
-    k = Kernel(kernel, bus, lists, rng, psg_wait)
+    bus = Bus('nominal', rng)
+    k = Kernel(kernel, bus, lists, rng, psg_wait, seed, idle)
     while not k.ended: k.step()
     for _ in range(40): k.step()
     bus.finish()
@@ -296,18 +338,21 @@ def run(elf, kernel, lists, seed, bounce=0.0, publish_us=300, quiet=False, psg_w
     fmem, lmem = bytearray(BANK), bytearray(2 * BANK)
     for a in range(BANK): fmem[mega_index(a)] = kernel[a] if a < len(kernel) else 0xc7
     cpu.banks = [(fixed, fmem), (lram, lmem)]
-    if new:
+    if new:                                # cvframes.c's cvf_serve_t
         sv = sym['sv'][0]
-        A_READY, A_TAKEN, A_FRAMES, A_REP = sv, sv + 4, sv + 8, sv + 12
-        cpu.ram[sv + 16] = fixed
-        cpu.ram[sv + 20] = 0
+        A_READY, A_TAKEN, A_FRAMES = sv, sv + 4, sv + 8
+        REP = {k: sv + 12 + k for k in range(7)}        # report slot (address - $FF80) >> 4 -> its byte
+        cpu.ram[sv + 12] = cpu.ram[sv + 16] = 0x0f030f
+        cpu.ram[sv + 20] = fixed
+        cpu.ram[sv + 24] = 0
         cpu.r[0] = sv
         entry = sym['cvf_serve2'][0] & ~1
     else:
         A_READY, A_TAKEN, A_FRAMES, A_REP = sym['f_ready'][0], sym['f_taken'][0], sym['f_frames'][0], sym['f_rep'][0]
+        REP = {4 + k: A_REP + k for k in range(3)}
+        cpu.ram[A_REP & ~3] = 0x0f030f << (8 * (A_REP & 3))
         entry = sym['serve'][0] & ~1
     cpu.ram[A_TAKEN] = lram
-    cpu.ram[A_REP & ~3] = 0x0f030f << (8 * (A_REP & 3))
     cpu.r[13], cpu.r[14], cpu.r[15] = 0x20200000, cs.RET | 1, entry
     T0_US = 5_000_000                      # (past the boot window: a settled $8000 read would be RESET)
     brng = random.Random(seed + 1000)
@@ -367,7 +412,7 @@ def run(elf, kernel, lists, seed, bounce=0.0, publish_us=300, quiet=False, psg_w
             fr = cpu.ram.get(A_FRAMES, 0)
             if fr != last_frames:
                 last_frames = fr
-                takes.append((cpu.t, fr, cpu.ram[A_TAKEN]))
+                takes.append((cpu.t, fr, cpu.ram[A_TAKEN], {k: cpu.rd(a, 1) for k, a in REP.items()}))
     except cs.Stop:
         reset_at = cpu.t
     except KeyError:                       # (cvframes.c's serve calls serve_handoff, which isn't here)
@@ -402,12 +447,24 @@ def run(elf, kernel, lists, seed, bounce=0.0, publish_us=300, quiet=False, psg_w
             ti += 1
         else: missed += 1
     extra += sum(1 for t in takes[ti:] if t[0] < limit)
+    # the controllers: at each frame's take, the nibbles reported in that frame's start
+    want, wrong_rep, slots = {}, 0, set()
+    ri = 0
+    tk = {t[1]: t for t in takes}
+    for si, f in k.frame_sel:
+        while ri < len(k.reports) and k.reports[ri][0] < si:
+            want[k.reports[ri][1]] = k.reports[ri][2]; slots.add(k.reports[ri][1]); ri += 1
+        t = tk.get(f + 1)
+        if t is None or t[0] > limit: continue
+        wrong_rep += sum(1 for sl, v in want.items() if sl in t[3] and t[3][sl] != v)
+    ctrl2 = any(sl < 4 for sl in slots)
     false_reset = reset_at is not None
-    ok = not bad and not missed and not extra and not false_reset
+    ok = not bad and not missed and not extra and not false_reset and not wrong_rep and slots >= {4, 5, 6}
     reads = sum(1 for w in k.exp if w is not None)
     if not quiet or not ok:
-        print('  %s seed %-3d: %d lists, %d cart reads | frame selects missed %d, false %d%s | wrong bytes %d (opcode %d, data %d) | margin: opcode %4.0f ns, data %4.0f ns'
+        print('  %s seed %-3d: %d lists, %d cart reads | frame selects missed %d, false %d%s | controller%s nibbles wrong %d | wrong bytes %d (opcode %d, data %d) | margin: opcode %4.0f ns, data %4.0f ns'
               % ('cvfserve.S' if new else 'cvframes.c', seed, len(lists), reads, missed, extra, ', a false RESET' if false_reset else '',
+                 's 1+2' if ctrl2 else ' 1', wrong_rep,
                  len(bad), sum(1 for b in bad if b[2] == 'm1'), sum(1 for b in bad if b[2] == 'rd'), worst['m1'], worst['rd']))
         for ts, a, kind, m in bad[:int(os.environ.get('NBAD', '4'))]:
             print('      $%04X (%s) at %.1f us: %s' % (a | 0x8000, 'opcode' if kind == 'm1' else 'data', ts / 1000,
@@ -430,9 +487,11 @@ if __name__ == '__main__':
     ap.add_argument('--slack', type=float, default=None,
                     help='ns a byte may be late by (0; with --bounce 30: the games\' loop, cvserve_sim.py --bounce, is up to 8 late at these odds)')
     ap.add_argument('--expect-bad', action='store_true', help="the run must find wrong bytes (the loop cvfserve.S replaces, with --bounce)")
+    ap.add_argument('--idle', action='store_true', help='the controllers left alone (the bus as runs before they were pressed had it)')
     ap.add_argument('--quiet', action='store_true')
     a = ap.parse_args()
-    kpath = a.kernel or os.path.join(os.path.dirname(os.path.abspath(a.elf)), 'cvframes', 'gbkernel.bin')
+    kpath = a.kernel or os.path.join(os.path.dirname(os.path.abspath(a.elf)), 'cvframes',
+                                     *(['controller2'] if is_ctrl2(a.elf) else []), 'gbkernel.bin')
     kernel = open(kpath, 'rb').read()
     fails = tot_bad = tot_reads = 0
     w = {'m1': 1e9, 'rd': 1e9}
@@ -440,7 +499,7 @@ if __name__ == '__main__':
     for s in ([a.seed] if a.seed is not None else range(a.seeds)):
         lists = read_lists(a.lists, a.first + s * a.frames, a.frames) if a.lists else made_up_lists(a.frames, random.Random(s + 77))
         ok, nbad, missed, extra, worst, reads, bad, new = run(a.elf, kernel, lists, s, a.hit if a.bounce else 0.0, a.publish_us, a.quiet,
-                                                              slack=a.slack if a.slack is not None else 30.0 if a.bounce else 0.0)
+                                                              slack=a.slack if a.slack is not None else 30.0 if a.bounce else 0.0, idle=a.idle)
         fails += not ok
         tot_bad += nbad; tot_reads += reads
         for kk in w: w[kk] = min(w[kk], worst[kk])

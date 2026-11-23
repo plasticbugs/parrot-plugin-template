@@ -111,14 +111,21 @@ build-sim/myplugin/parrotsim --card ~/sdcard
 
 | Key | On the console |
 |---|---|
-| arrows, or W A S D | the controller's stick |
+| arrows, or W A S D | controller 1's stick |
 | Z, X | its left and right fire buttons |
 | 0 to 9 | its keypad's digits |
 | `-` and `=` | its keypad's `*` and `#` |
+| I J K L | controller 2's stick (up, left, down, right) |
+| N, M | its left and right fire buttons |
+| Shift with 0 to 9, `-`, `=` | its keypad |
+
+Controller 2 only reaches a plugin built with `parrotcart_frames(mygame
+CONTROLLER2)` (`cvf_input2()`).
 
 Any game pad works too. Its d-pad or left stick is the controller's
 stick, its face buttons are the fire buttons, and Back and Start are `*`
-and `#`. Game pads are also the plugin's USB pads (section 4).
+and `#`. The first pad is controller 1 and the second is controller 2.
+Game pads are also the plugin's USB pads (section 4).
 
 | Key | In the simulator |
 |---|---|
@@ -179,7 +186,8 @@ reports a Switch Pro Controller as `SWITCH PRO` and any other pad as
 `HID PAD`. As on the cart, a pad keeps its number until you unplug it. If
 you unplug pad 1, pad 2 is still pad 2, and the next pad you plug in
 becomes pad 1. A third pad isn't used. Pad 1 is also the console's
-controller, or pad 2 while there's no pad 1.
+controller 1, or pad 2 while there's no pad 1. With both in, pad 2 is
+controller 2.
 
 **A keyboard and a mouse** (`KEYBOARD`, `MOUSE`). In F2's third role,
 each key goes to the plugin the way a USB keyboard sends it. The SDK's

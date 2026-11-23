@@ -63,9 +63,22 @@ endfunction()
 # and all the cart's frame plugins are built with it. cvscale.c (the 3/4
 # scaler, cvscale.h) is built in too. The linker leaves it out if nothing
 # calls it.
+#
+#   parrotcart_frames(mygame CONTROLLER2)
+#
+# CONTROLLER2: the kernel reads the console's controller 2 as well, for
+# cvf_input2(). It costs 179 Z80 cycles at the start of every frame, so
+# leave it out of a plugin that doesn't read controller 2.
 function(parrotcart_frames TARGET)
+    cmake_parse_arguments(P "CONTROLLER2" "" "" ${ARGN})
+    if (P_UNPARSED_ARGUMENTS)
+        message(FATAL_ERROR "parrotcart_frames(${TARGET}): ${P_UNPARSED_ARGUMENTS}? The only option is CONTROLLER2")
+    endif()
     cvframes_use(${TARGET})
     cvframes_serve2(${TARGET})
+    if (P_CONTROLLER2)
+        cvframes_controller2(${TARGET})
+    endif()
     target_sources(${TARGET} PRIVATE ${PARROTCART_SDK}/sdk/cvscale.c)
     target_include_directories(${TARGET} PRIVATE ${PARROTCART_DIR}/lib ${PARROTCART_SDK}/midihello)
     _parrotcart_common(${TARGET})

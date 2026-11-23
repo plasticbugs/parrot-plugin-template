@@ -57,14 +57,14 @@ and leave the clock at 150 MHz, which it is timed for.
 
 - **The budget.** A frame is 59,736 Z80 cycles, and the vertical blank
   is the first 15,960 of them. Add up each list's cost as you build it,
-  by the costs in `gbkernel.asm`'s header: 480 for the kernel's start, a
-  video RAM run 106 plus 23 a byte in the blank and 31 a byte after it,
-  sound 75 plus 52 a byte (the chip holds the Z80 for about 29 cycles at
-  each byte), a register 114, and 54 and 52 for the two ends. The models
-  in `test/run.sh` and the simulator fail a list whose blank part runs
-  past 15,360 cycles or whose whole runs past 58,536. The template keeps
-  2,000 and 4,000 cycles in hand. That leaves room for about 1,800 bytes
-  of video RAM a frame.
+  by the costs in `gbkernel.asm`'s header: 480 for the kernel's start
+  (660 with `CONTROLLER2`), a video RAM run 106 plus 23 a byte in the
+  blank and 31 a byte after it, sound 75 plus 52 a byte (the chip holds
+  the Z80 for about 29 cycles at each byte), a register 114, and 54 and
+  52 for the two ends. The models in `test/run.sh` and the simulator
+  fail a list whose blank part runs past 15,360 cycles or whose whole
+  runs past 58,536. The template keeps 2,000 and 4,000 cycles in hand.
+  That leaves room for about 1,800 bytes of video RAM a frame.
 - **Safe to run twice.** When no new list has come, the console runs the
   last one again. Absolute video RAM writes, registers and sound bytes do
   no harm twice. Writing the noise's kind and rate restarts the noise, so
@@ -207,6 +207,7 @@ them all:
 |---|---|---|
 | move | the stick | the d-pad or the left stick |
 | fire (or jump) | either fire button | any face button |
+| twin-stick fire (Robotron) | controller 2's stick | the right stick, or the face buttons (two at once for a diagonal) |
 | coin | keypad * or # | - (minus; Share on a PS4 pad) |
 | one-player start | keypad 1 | + (plus; Options on a PS4 pad) |
 | two-player start | keypad 2 | |
@@ -223,6 +224,15 @@ still give one coin.
 Read the pad yourself, as below, and not through `cvin_update()`. That
 one presses * and # with the pad's top and left buttons, which in an
 arcade game would be coins.
+
+A twin-stick game moves with controller 1's stick and fires the way
+controller 2's stick points, in 8 directions. Build it with
+`parrotcart_frames(mygame CONTROLLER2)` so the kernel reads controller 2.
+On a USB pad, the left stick moves and the right stick fires. A pad
+whose right stick doesn't read (a DualShock 4, `docs/features.md`) fires
+with the face buttons: top up, bottom down, left left, right right, and
+two at once for a diagonal. Keypad 1 and 2, * and # do what they do in
+every arcade game, on controller 1.
 
 ```c
 // once a list, for player 1: the console's controller and USB pad 1
@@ -243,6 +253,24 @@ if (coin) coin_wait = 3; else if (coin_wait) coin_wait--;
 const bool coin_switch = coin_left > 0;             // the game's coin input for this list
 if (coin_left) coin_left--;
 ```
+
+For a twin-stick game, the fire direction from controller 2 and the pad:
+
+```c
+// once a list, after the code above; needs parrotcart_frames(mygame CONTROLLER2)
+uint8_t joy2, fire2, lines2;
+cvf_input2(&joy2, &fire2, &lines2);                 // controller 2, low = pressed
+int16_t rx = 0, ry = 0;
+if (cvusb_pad(0, &p)) { rx = p.rx; ry = p.ry; }     // the right stick, y up
+const bool fire_up    = !(joy2 & 1) || ry > 820 || (buttons & GP_NORTH);
+const bool fire_right = !(joy2 & 2) || rx > 820 || (buttons & GP_EAST);
+const bool fire_down  = !(joy2 & 4) || ry < -820 || (buttons & GP_SOUTH);
+const bool fire_left  = !(joy2 & 8) || rx < -820 || (buttons & GP_WEST);
+// (up and down together, or left and right, cancel: no fire that way)
+```
+
+`examples/two-controllers` shows both controllers and the pad's two
+sticks live, with this rule.
 
 Arcade controls the console doesn't have go on what it does have, and
 the README says how:

@@ -30,25 +30,31 @@ static uint8_t fixed_ram[BANK] __attribute__((aligned(4)));     // the kernel
 static uint8_t handoff_ram[BANK] __attribute__((aligned(4)));   // handoff.asm, RST 0 past it, in both halves
 static uint8_t list_ram[2][BANK] __attribute__((aligned(4)));   // the lists, permuted
 
+#if defined(CVF_CTRL2) && !defined(CVF_SERVE2)
+#error "cvframes_controller2() needs cvframes_serve2(): controller 2 is cvfserve.S's"
+#endif
+
 #ifdef CVF_SERVE2
 // cvfserve.S's loop (cvplugin.cmake: cvframes_serve2()) and what it shares
-// with core 0, at the offsets it has for them
+// with core 0, at the offsets it has for them. rep is the controllers'
+// reports by (address - $FF80) >> 4: controller 2's joystick, fires and
+// keypad (cvframes_controller2()), a spare, then controller 1's.
 typedef struct {
     const uint8_t *volatile ready, *volatile taken;
     volatile uint32_t frames;
-    volatile uint8_t rep[4];
+    volatile uint8_t rep[8];
     const uint8_t *fixed;
     uint32_t t_serve;
     volatile uint32_t unsel, early, unhdr;
 } cvf_serve_t;
 _Static_assert(offsetof(cvf_serve_t, taken) == 4 && offsetof(cvf_serve_t, frames) == 8 && offsetof(cvf_serve_t, rep) == 12 &&
-               offsetof(cvf_serve_t, fixed) == 16 && offsetof(cvf_serve_t, t_serve) == 20 && offsetof(cvf_serve_t, unsel) == 24 &&
-               offsetof(cvf_serve_t, early) == 28 && offsetof(cvf_serve_t, unhdr) == 32, "cvfserve.S's offsets");
-static cvf_serve_t sv = {.rep = {0x0F, 0x03, 0x0F, 0}};
+               offsetof(cvf_serve_t, fixed) == 20 && offsetof(cvf_serve_t, t_serve) == 24 && offsetof(cvf_serve_t, unsel) == 28 &&
+               offsetof(cvf_serve_t, early) == 32 && offsetof(cvf_serve_t, unhdr) == 36, "cvfserve.S's offsets");
+static cvf_serve_t sv = {.rep = {0x0F, 0x03, 0x0F, 0, 0x0F, 0x03, 0x0F, 0}};    // nothing pressed
 void cvf_serve2(cvf_serve_t *s);            // returns at RESET
 #define f_ready  sv.ready
 #define f_taken  sv.taken
-#define f_rep    sv.rep
+#define f_rep    (sv.rep + 4)               // controller 1's
 #define f_frames sv.frames
 static volatile bool to_menu, parked;
 #else
@@ -190,6 +196,14 @@ void cvf_input(uint8_t *joy, uint8_t *fire, uint8_t *key) {
     *fire = f_rep[1];
     *key = f_rep[2];
 }
+
+#ifdef CVF_CTRL2
+void cvf_input2(uint8_t *joy, uint8_t *fire, uint8_t *key) {
+    *joy = sv.rep[0];
+    *fire = sv.rep[1];
+    *key = sv.rep[2];
+}
+#endif
 
 bool cvf_waiting(void) { return f_ready != 0; }
 

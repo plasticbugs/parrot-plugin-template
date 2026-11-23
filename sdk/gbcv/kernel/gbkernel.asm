@@ -15,6 +15,16 @@
 ;                       by putting the next list at $C000 (an empty one if
 ;                       it has none ready). Each list runs once.
 ;
+; Assembled with -DCONTROLLER2 (parrotcart_frames(... CONTROLLER2), which is
+; cvframes_controller2()), it reads controller 2 too ($FF, as $FC) and
+; reports it 64 lower, between the fire buttons and seq:
+;   read $FF80+dirs     controller 2's joystick
+;   read $FFA0+key      its keypad
+;   read $FF90+fires    its fire buttons
+; That puts the list 179 T later (count 660 for the frame's start, not 480)
+; and so 179 T more between lists that run back to back. Without it the
+; image is byte for byte the one from before controller 2.
+;
 ; A list, at $C000:
 ;   vertical blank part, VRAM writes as fast as the Z80 goes
 ;     1 lo hi n d*n     VRAM run: address lo, hi|$40, n bytes (1-255)
@@ -31,6 +41,8 @@
 ; constants, and the cart keeps every list inside its frame by them):
 ;   vertical blank:  run 106 + 23n, PSG 75 + 52n, register 114, end 54
 ;   active display:  run 106 + 31n, PSG 75 + 52n, end 52
+; and the frame's start, from the NMI to the first command: about 480 (660
+; with CONTROLLER2)
 ;
 ; VRAM: patterns $0000, colours $2000, names $1800, sprites off ($1B00 =
 ; $D0). The cart never writes slot 0 of a third, which stays all zero:
@@ -46,6 +58,7 @@ VDP_CTRL        EQU     0xBF
 KEY_MODE        EQU     0x80            ; out: the controllers read the keypad
 JOY_MODE        EQU     0xC0            ; out: the controllers read the joystick
 CTRL1           EQU     0xFC
+CTRL2           EQU     0xFF            ; in: controller 2 (out: the PSG)
 STACK_TOP       EQU     0x7400
 FRAMES          EQU     0x7000          ; NMIs so far
 SEEN            EQU     0x7001          ; FRAMES when the last frame started
@@ -97,6 +110,10 @@ frame:          ld      hl,FRAMES
                 in      a,(VDP_CTRL)            ; F off, so the next vertical blank raises NMI
                 out     (JOY_MODE),a
                 ld      h,0xFF
+        IFDEF CONTROLLER2
+                in      a,(CTRL2)               ; controller 2's joystick, the same bits
+                ld      c,a
+        ENDIF
                 in      a,(CTRL1)               ; joystick: bits 0-3, left fire bit 6
                 ld      e,a
                 out     (KEY_MODE),a
@@ -124,6 +141,33 @@ frame:          ld      hl,FRAMES
                 or      0xD0
                 ld      l,a
                 ld      a,(hl)                  ; report the fire buttons
+        IFDEF CONTROLLER2
+                ld      a,c                     ; controller 2, the same way, 64 lower
+                and     0x0F
+                or      0x80
+                ld      l,a
+                ld      a,(hl)                  ; its joystick ($FF80+)
+                in      a,(CTRL2)               ; its keypad (KEY_MODE is both controllers')
+                ld      b,a
+                and     0x0F
+                or      0xA0
+                ld      l,a
+                ld      a,(hl)                  ; its keypad ($FFA0+)
+                ld      a,c
+                rlca
+                rlca
+                and     1
+                ld      c,a
+                ld      a,b
+                rlca
+                rlca
+                rlca
+                and     2
+                or      c
+                or      0x90
+                ld      l,a
+                ld      a,(hl)                  ; its fire buttons ($FF90+)
+        ENDIF
                 ld      a,(SEQ)
                 inc     a
                 ld      (SEQ),a

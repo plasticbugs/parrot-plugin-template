@@ -6,13 +6,15 @@
 //   core 1  serves the kernel as a MegaCart: its 16K at $8000-$BFFF, and at
 //           $C000-$FFFF the list for this frame. Each frame the kernel reads
 //           $FFC0+joystick, $FFD0+fires and $FFE0+keypad (the controller, in
-//           the address), then $FFF0+seq, which makes the newest list the
-//           plugin published the one at $C000. With nothing new, the last
-//           list runs again: a list must leave the console as it found it if
-//           it runs twice (nescv's and gbcv's do: VRAM writes, registers and
-//           PSG bytes, all absolute). On RESET (a settled header read more
-//           than a second after it started) it switches to handoff.asm
-//           inside that read, so the console parks in its RAM.
+//           the address; with cvframes_controller2(), controller 2's at
+//           $FF80, $FF90 and $FFA0 too), then $FFF0+seq, which makes the
+//           newest list the plugin published the one at $C000. With nothing
+//           new, the last list runs again: a list must leave the console as
+//           it found it if it runs twice (nescv's and gbcv's do: VRAM
+//           writes, registers and PSG bytes, all absolute). On RESET (a
+//           settled header read more than a second after it started) it
+//           switches to handoff.asm inside that read, so the console parks
+//           in its RAM.
 //   core 0  the plugin's own loop, which calls cvf_task() each pass: the
 //           power watch, and back to the menu once the console is parked
 //           (cvkernel.h has the same).
@@ -64,6 +66,17 @@ uint32_t cvf_frames(void);
 // 0-3 (N E S W), fires bit 0 (left) and 1 (right), the keypad's code ($F:
 // none; gbplay.c's look_key() has the digits)
 void cvf_input(uint8_t *joy, uint8_t *fire, uint8_t *key);
+
+// controller 2, the same way. Only with cvframes_controller2()
+// (parrotcart_frames(TARGET CONTROLLER2)), whose kernel reads it too: that
+// costs 179 Z80 cycles at each frame's start (gbkernel.asm). Without it a
+// call is a build error (as cvusb.h's getters are).
+#if defined(CVF_CTRL2) || !defined(__GNUC__) || defined(__clang__)
+void cvf_input2(uint8_t *joy, uint8_t *fire, uint8_t *key);
+#else
+void cvf_input2(uint8_t *joy, uint8_t *fire, uint8_t *key)
+    __attribute__((error("cvf_input2() needs CONTROLLER2: parrotcart_frames(TARGET CONTROLLER2) in CMakeLists.txt")));
+#endif
 
 // a list for the console's next frame, copied into the bank it isn't
 // running; false (and nothing copied) while the last one published hasn't

@@ -59,6 +59,7 @@ void model_init(void);                  // host.c's main(), with opt
 void model_run(void);                   // the plugin's main(); doesn't return
 void model_picture(uint8_t pic[SIM_H][SIM_W]);   // the TV now (vdp_rgb's colours)
 void model_console(uint8_t held, int key);       // controller 1: WIRED_* bits, key -1 or 0-11
+void model_console2(uint8_t held, int key);      // controller 2, the same way (cvf_input2())
 void model_usb_pad(int n, bool in, const gamepad_t *p, bool hid);  // USB pad n (0, 1): a Switch Pro or HID pad
 void model_usb_key(uint8_t usage, bool down);    // a USB keyboard's key (HID usage; E0-E7 the modifiers)
 void model_usb_keys_up(void);                    // every key it holds, let go

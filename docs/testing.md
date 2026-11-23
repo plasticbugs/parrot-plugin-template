@@ -23,7 +23,10 @@ it against models of everything on the cart (`test/host/host.c`):
 Then the test plays the plugin's lists to the SDK's real Z80 kernel on
 MAME's ColecoVision (`tools/mame-replay.sh`, headless). MAME's picture
 has to match the model's pixel for pixel, and for the frame kernel, no
-list can make a frame start late.
+list can make a frame start late. For the frame kernel's controller
+reports, `tools/mame-controllers.sh` presses every switch of both MAME
+controllers and checks what the kernel tells the cart, with
+`CONTROLLER2` and without it.
 
 That step needs `mame`, `sjasmplus` and the ColecoVision BIOS. MAME
 calls the BIOS `coleco.zip`, and the kit doesn't include it, so bring
@@ -116,7 +119,7 @@ cart:
 
 ## A test plan for the examples on a console
 
-Copy the ten `.CVP` files to the card's `/PLUGINS` folder, and put a text
+Copy the eleven `.CVP` files to the card's `/PLUGINS` folder, and put a text
 file or two anywhere on the card. Check these steps for every plugin
 first:
 
@@ -141,6 +144,7 @@ Then check each plugin:
 | SD Card Example | Run it, press RESET, run it again, then look at the card on a computer | The top folder's first 8 entries with their sizes, the first file's first characters, and `RUN 1, SAVED AND READ BACK`, then `RUN 2`. The menu's note gives the run. On the computer, `/SDCARD.SAV` is 512 bytes and the card checks clean. Try a FAT32 card and an exFAT card. If it can't read the card, it says so in red |
 | Text Viewer | In the card's folders, press A on a `.txt` file (it has the plugin's green icon). Move the stick down and up, hold left fire and move the stick, then press RESET | The file's name and text, wrapped at 30 columns. The stick scrolls by a line, and by a page with left fire held. Back in the menu, you see the same folder with the same file selected, and `Read NAME` on the bottom line. In the Plugin Manager, its details say it starts with a file, and A there doesn't start it. A name with an accented letter still opens |
 | Frames Example | Watch for a minute, and steer with the stick | Eight color bars appear within a quarter of a second. A round white ball moves smoothly, with no tearing, no stray blocks left behind and no stutter. There's a short beep at each bounce and silence between, with no drone, and the stick turns the ball |
+| Two Controllers Example | Plug a second controller into the console's port 2. Move each stick all eight ways, press each fire button and each keypad key, on one controller and then the other. Then plug a pad into a powered hub and move both its sticks | Each controller's grid lights the way its stick points, `FIRE L` and `FIRE R` turn red while held, and the key held lights on its keypad. Nothing shows on the other controller's side. `TWIN STICK` shows controller 1's stick and the pad's left stick under `MOVE`, and controller 2's stick, the pad's right stick or its face buttons under `FIRE`. After RESET, the menu shows the last values, `C1 JF F3 KF, C2 JF F3 KF` with nothing held |
 | PSRAM Example | Run it | `ID 0D 5D ...`, the bar filling twice, then `ALL 8 MB READ BACK RIGHT` and two times in milliseconds. Write the times down, because they're the PSRAM's real speed |
 
 If one fails, look first at the menu's note after RESET, and at the

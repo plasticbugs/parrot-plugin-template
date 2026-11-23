@@ -77,9 +77,13 @@ On the console side, you have:
   channel, each with 16 volume steps. On a real console, every sound
   write stalls the Z80 for about 29 cycles. The kernels and their cost
   tables allow for that.
-- The controllers, each with a joystick, two fire buttons and a 12-key
-  keypad. The kernels read them on the console and send their state to
-  the cart (`cvf_input()` in the frame kernel).
+- Two controllers, each with a joystick, two fire buttons and a 12-key
+  keypad. Both kernels read controller 1 and send its state to the cart
+  (`cvf_input()` in the frame kernel). The frame kernel reads controller
+  2 as well when the plugin is built with `parrotcart_frames(mygame
+  CONTROLLER2)`, and `cvf_input2()` gives it. That costs 179 Z80 cycles
+  at the start of every frame, so it's off unless you ask for it. The
+  screen kernel doesn't read controller 2.
 - The TV timing, which is 60 frames a second (NTSC), with 262 lines of
   228 Z80 cycles each.
 

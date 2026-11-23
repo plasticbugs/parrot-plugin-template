@@ -41,9 +41,10 @@ cvcart_plugin(myplugin ID you.myplugin NAME "My Plugin" VERSION 0.1.0 BY "You"
 that can also start without a file (`docs/plugin-rules.md`).
 `parrotcart_frames()` is `cvframes_use()` and `cvframes_serve2()` (the
 two-sample bus loop) with `cvscale.c` built in. Use it rather than
-`cvframes_use()` alone. A Lua plugin uses `parrotcart_lua(target MAIN
-src/main.lua FILES ... HOME /FOLDER)` instead of `parrotcart_screen()`
-(`docs/lua.md`).
+`cvframes_use()` alone. `parrotcart_frames(myplugin CONTROLLER2)` also
+reads the console's controller 2, for `cvf_input2()`. A Lua plugin uses
+`parrotcart_lua(target MAIN src/main.lua FILES ... HOME /FOLDER)` instead
+of `parrotcart_screen()` (`docs/lua.md`).
 
 ## The screen kernel
 
@@ -79,7 +80,8 @@ because the SDK sends only what changed.
 | `cvf_frames()` | TV frames started so far. When it changes, make the next list |
 | `cvf_waiting()` | a list is published and not yet taken |
 | `cvf_publish(list, n)` | the console runs it at the next frame's start |
-| `cvf_input(&joy, &fire, &key)` | the controller as the kernel read it, low means pressed (or use `cvinput.h`) |
+| `cvf_input(&joy, &fire, &key)` | controller 1 as the kernel read it, low means pressed (or use `cvinput.h`) |
+| `cvf_input2(&joy, &fire, &key)` | controller 2, the same way. Only with `parrotcart_frames(myplugin CONTROLLER2)`, which makes the kernel's start cost 660 cycles instead of 480 |
 | `cvf_on_exit(fn)` | runs once on the way back to the menu, with the console parked: write saves here |
 | `cvf_note(text)` | the note for the menu |
 | `cvf_bus_counts(&unsel, &early, &unhdr)` | what the bus loop refused since the start: addresses that looked like a select, selects taken as their read ended, addresses that looked like the header. For the note |

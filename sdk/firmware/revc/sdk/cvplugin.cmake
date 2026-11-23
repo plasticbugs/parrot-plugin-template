@@ -16,6 +16,9 @@
 #                                plugin: core 1's bus loop is cvfserve.S,
 #                                which acts on two samples of the pins that
 #                                agree (the old loop is still the default)
+#   cvframes_controller2(game)   after cvframes_serve2: the kernel reads
+#                                controller 2 as well (gbkernel.asm built
+#                                with CONTROLLER2), and cvf_input2() has it
 #   cvpsram_use(nes)             the PSRAM (cvpsram.h)
 #   (before pico_sdk_import.cmake: include(.../sdk/cvpad_tinyusb.cmake), for
 #   cvpad_use's USB host from sdk/tinyusb, TinyUSB 0.21.0, whose tuh_task()
@@ -108,6 +111,7 @@ function(cvkernel_generate)
 endfunction()
 
 # the Game Boy kernel, the handoff and the pin order, once a build directory
+# (and the kernel that reads controller 2 too, in cvframes/controller2)
 function(cvframes_generate)
     get_property(done DIRECTORY PROPERTY CVFRAMES_GEN)
     if (done)
@@ -127,6 +131,16 @@ function(cvframes_generate)
         OUTPUT ${GEN}/gbkernel.h
         COMMAND python3 ${CVSDK_REVC}/sdplayer/bin2c.py ${GEN}/gbkernel.bin gbkernel_bin ${GEN}/gbkernel.h
         DEPENDS ${GEN}/gbkernel.bin ${CVSDK_REVC}/sdplayer/bin2c.py)
+    file(MAKE_DIRECTORY ${GEN}/controller2)
+    add_custom_command(
+        OUTPUT ${GEN}/controller2/gbkernel.bin
+        COMMAND sjasmplus --nologo -DCONTROLLER2 ${GBK}
+        WORKING_DIRECTORY ${GEN}/controller2
+        DEPENDS ${GBK})
+    add_custom_command(
+        OUTPUT ${GEN}/controller2/gbkernel.h
+        COMMAND python3 ${CVSDK_REVC}/sdplayer/bin2c.py ${GEN}/controller2/gbkernel.bin gbkernel_bin ${GEN}/controller2/gbkernel.h
+        DEPENDS ${GEN}/controller2/gbkernel.bin ${CVSDK_REVC}/sdplayer/bin2c.py)
     add_custom_command(
         OUTPUT ${GEN}/handoff.bin
         COMMAND sjasmplus --nologo ${HO}
@@ -159,6 +173,22 @@ endfunction()
 function(cvframes_serve2 TARGET)
     target_sources(${TARGET} PRIVATE ${CVSDK_DIR}/cvfserve.S)
     target_compile_definitions(${TARGET} PRIVATE CVF_SERVE2)
+endfunction()
+
+# cvframes_controller2(game), after cvframes_serve2: controller 2 as well.
+# The kernel reads port $FF as it reads $FC and reports it at $FF80-$FFAF
+# (179 Z80 cycles more at each frame's start, gbkernel.asm's header); the
+# bus loop takes $FF80-$FFBF as selects too (cvfserve.S, CVF_CTRL2); and
+# cvf_input2() returns it. main()'s #include "gbkernel.h" is that kernel.
+function(cvframes_controller2 TARGET)
+    get_target_property(src ${TARGET} SOURCES)
+    if (NOT src MATCHES "cvfserve\\.S")
+        message(FATAL_ERROR "cvframes_controller2(${TARGET}): after cvframes_serve2(${TARGET}) (or use parrotcart_frames(${TARGET} CONTROLLER2))")
+    endif()
+    set(GEN ${CMAKE_CURRENT_BINARY_DIR}/cvframes)
+    target_sources(${TARGET} PRIVATE ${GEN}/controller2/gbkernel.h)
+    target_include_directories(${TARGET} BEFORE PRIVATE ${GEN}/controller2)
+    target_compile_definitions(${TARGET} PRIVATE CVF_CTRL2)
 endfunction()
 
 function(cvpsram_use TARGET)

@@ -119,6 +119,11 @@ void model_console(uint8_t held, int key) {
     key_held = key;
 }
 
+void model_console2(uint8_t held, int key) {
+    joy2_held = held;
+    key2_held = key;
+}
+
 void model_usb_pad(int n, bool in, const gamepad_t *p, bool hid) {
     if (n < 0 || n >= CVUSB_PAD_MAX) return;
     pad_in[n] = in;

@@ -15,7 +15,8 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames psram lua vdp usb. Pictures and logs: build-sim/test/.
+# sd-card open-file frames two-controllers psram lua vdp usb. Pictures and
+# logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
 # told not to turn the card's "/NOTES/..." into a path on this computer)
@@ -186,6 +187,13 @@ if wanted frames; then
     # the beep at each bounce (440 Hz for four frames), where the log has its PSG bytes
     "$py" -I "$kit/sim/wavcheck.py" "$o/frames.wav" 0-1200:0 1222-1280:440 1300-2000:0 2023-2080:440 3141-3198:440 \
         3908-3965:440 4000-4990:0 || fail "the beeps aren't where the frame lists put them"
+fi
+if wanted two-controllers; then
+    run two-controllers "$kit/examples/two-controllers" --ms 3000 --script "$(cat "$kit/examples/two-controllers/test.script")"
+    expect 'note "C1 JE F2 K3, C2 J3 F1 K6"' 'note "C1 JF F3 KF, C2 JF F3 KF"'
+    # two game pads on the desktop: the first is controller 1 too, the second controller 2
+    run two-controllers-pads "$kit/examples/two-controllers" --ms 1500 --script "500:simpad=switch 600:simpad=hid 800:simbuttons=2:down+east+plus 900:simbuttons=1:up+south"
+    expect 'note "C1 JF F3 KF, C2 JB F1 K6"' 'note "C1 JE F2 KF, C2 JB F1 K6"'
 fi
 if wanted psram; then
     run psram "$kit/examples/psram" --ms 60000

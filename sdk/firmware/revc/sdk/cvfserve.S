@@ -16,7 +16,11 @@
 //     while its byte stays out, and one that isn't costs its read nothing:
 //     the sample that differed is served at once;
 //   - a header read ($8000) is RESET only if it holds for HCONFIRM samples
-//     more, a second or more after the loop started.
+//     more, a second or more after the loop started;
+//   - built with CVF_CTRL2 (cvframes_controller2(): the kernel reads
+//     controller 2 as well), $FF80-$FFBF are selects too: controller 2's
+//     reports, 64 below controller 1's. Its main loop is the same to the
+//     instruction, with A6 left out of the select's mask.
 //
 // The loop's turn is cvserve.S's to the cycle (26: the lookup is 9 here
 // too), so what the console has shown of that loop (CVBUS, Mappy and
@@ -33,6 +37,9 @@
 #if GPIO_A14 != 8
 #error "cvfserve.S: A14 on GPIO 8 (the bank; perm.h's MEGA_INDEX)"
 #endif
+#if GPIO_A6 != 10
+#error "cvfserve.S: A6 on GPIO 10, beside A5 (the select's n)"
+#endif
 
 #define SIO_BASE     0xd0000000
 #define GPIO_IN      4
@@ -40,7 +47,11 @@
 #define TIMERAWL     0x400b0028            // TIMER0 (timer_hw->timerawl)
 #define LED_BIT      (1 << 25)
 #define NCART        0x8000
+#ifdef CVF_CTRL2                           // $FF80-$FFFF: controller 2's reports as well
+#define SEL_ADDR     ((1<<GPIO_A7)|(1<<GPIO_A8)|(1<<GPIO_A9)|(1<<GPIO_A10)|(1<<GPIO_A11)|(1<<GPIO_A12)|(1<<GPIO_A13)|(1<<GPIO_A14))
+#else                                      // $FFC0-$FFFF
 #define SEL_ADDR     ((1<<GPIO_A6)|(1<<GPIO_A7)|(1<<GPIO_A8)|(1<<GPIO_A9)|(1<<GPIO_A10)|(1<<GPIO_A11)|(1<<GPIO_A12)|(1<<GPIO_A13)|(1<<GPIO_A14))
+#endif
 #define SEL_MASK     (SEL_ADDR | NCART)
 #define BOOT_US      1000000               // the BIOS booting the kernel reads the header too
 
@@ -48,12 +59,13 @@
 #define S_READY      0                     // the list published, not taken yet (or 0)
 #define S_TAKEN      4                     // the list the console runs
 #define S_FRAMES     8                     // frames the console has started
-#define S_REP        12                    // the controller, as the kernel reported it (3 bytes)
-#define S_FIXED      16                    // the kernel's bank
-#define S_TSERVE     20                    // when the loop started (timerawl)
-#define S_UNSEL      24                    // looked like a select, wasn't
-#define S_EARLY      28                    // selects taken as their read ended
-#define S_UNHDR      32                    // looked like $8000, wasn't
+#define S_REP        12                    // the controllers' reports, by (address - $FF80) >> 4: controller 2's
+                                           // ($FF80, $FF90, $FFA0), a spare, then controller 1's at 16 ($FFC0 ...)
+#define S_FIXED      20                    // the kernel's bank
+#define S_TSERVE     24                    // when the loop started (timerawl)
+#define S_UNSEL      28                    // looked like a select, wasn't
+#define S_EARLY      32                    // selects taken as their read ended
+#define S_UNHDR      36                    // looked like $8000, wasn't
 
 #define CONFIRM      3                     // samples a select must hold for after the two that showed it
 #define HCONFIRM     5                     // ...a header read ($8000), 5 cycles apart
@@ -138,7 +150,8 @@ cvf_serve2:
         bne     11f
 17:     subs    r10, #1
         bne     15b
-// taken: n = A0-A5 (GPIO 0, 1, 2, 4, 6, 9)
+// taken: n = A0-A6 (GPIO 0, 1, 2, 4, 6, 9, 10), the address less $FF80.
+// (A6 is always 1 here without CVF_CTRL2: n is 64 or more.)
 13:     and     r1, r9, #7
         lsrs    r2, r9, #1
         and     r2, r2, #8
@@ -147,19 +160,19 @@ cvf_serve2:
         and     r2, r2, #16
         orrs    r1, r2
         lsrs    r2, r9, #4
-        and     r2, r2, #32
+        and     r2, r2, #96                 // A5 and A6, side by side
         orrs    r1, r2
-        cmp     r1, #48
+        cmp     r1, #112
         bhs     30f
-// $FFC0+n, n < 48: the controller, a nibble in the address
+// $FF80+n, n < 112: a controller's report, a nibble in the address
         lsrs    r2, r1, #4
         and     r1, r1, #15
         add     r2, r2, r11
         strb    r1, [r2, #S_REP]
         b       14f
-// $FFF0+seq: a frame's start. The list published since the last one (taken
-// set before ready clears, so core 0 never writes the bank the console
-// runs), or the last one again
+// $FFF0+seq (n 112-127): a frame's start. The list published since the
+// last one (taken set before ready clears, so core 0 never writes the bank
+// the console runs), or the last one again
 30:     ldr     r2, [r11, #S_READY]
         cbz     r2, 31f
         str     r2, [r11, #S_TAKEN]

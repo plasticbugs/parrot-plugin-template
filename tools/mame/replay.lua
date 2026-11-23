@@ -7,7 +7,9 @@
 --     mailbox at $FF00; the next list once the kernel reports the last one
 --     run (ACK, or HELLO before its first: a read of $FF80 / $FFA0 | seq)
 --   the frame kernel ('F' records)   a list at $C000, a new one for each
---     read of $FFF0 | seq (one a TV frame)
+--     read of $FFF0 | seq (one a TV frame); the controllers' reports
+--     ($FFC0-$FFEF, and controller 2's at $FF80-$FFAF with CONTROLLER2)
+--     are read and let go
 --
 -- tools/mame-replay.sh runs it; MAME never opens a window.
 
@@ -66,8 +68,8 @@ if frames_kernel then
         if linger == 0 then finish() end
       end
       return 0xFF
-    elseif offset >= 0xFFC0 then
-      return 0xFF               -- the controller's reports
+    elseif offset >= 0xFF80 then
+      return 0xFF               -- the controllers' reports
     end
     return bytes:byte(offset - 0xC000 + 1) or 0
   end)
