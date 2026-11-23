@@ -151,7 +151,10 @@ card and USB, then plays what it sent to the real Z80 kernel in MAME and
 compares pictures pixel for pixel (`docs/testing.md`). A plugin made by
 `new-plugin.py` already has its block in `test/run.sh`. Without MAME,
 `NO_MAME=1 test/run.sh NAME` runs the rest. If you run MAME yourself,
-keep it headless the way `tools/mame-replay.sh` does.
+keep it headless the way `tools/mame-replay.sh` does. The MAME step
+needs the ColecoVision BIOS, `coleco.zip`, which the kit can't include.
+Ask the user which folder holds theirs and pass it as `MAME_ROMPATH`.
+Never copy it into the repository.
 
 When it works in the simulator, give the user `sim/run.sh src` (or
 `sim/lua.sh src/main.lua --run`) to play it themselves with the keyboard
@@ -279,7 +282,9 @@ In a copy of the kit, read the file. Elsewhere, fetch it from
 | the SDK's calls | `sdk/firmware/revc/sdk/README.md` and its headers |
 | full plugins with source (NES, Game Boy, Master System, PC Engine, Vectrex, SCUMM, Lua, Text Editor) | `https://github.com/plasticbugs/parrot-plugin-*` |
 | arcade games with source (Donkey Kong, Pac-Man, Ms. Pac-Man, Q*bert, Time Pilot, Mr. Do!, Pole Position, Cloak & Dagger, Dragon's Lair, and the vector games Star Wars and The Empire Strikes Back, with speech) | `https://github.com/plasticbugs/parrot-plugin-dkong` and so on (`-pacman`, `-mspacman`, `-qbert`, `-timeplt`, `-mrdo`, `-polepos`, `-cloak`, `-dlair`, `-starwars`, `-esb`). Time Pilot's and Mr. Do!'s have their MAME tests |
-| porting an arcade game: keys, ROM sets, matching MAME, sound boards, speed | `references/porting.md`, "Arcade games" |
+| porting an arcade game: keys, ROM sets, high scores, the picture (vectors, palettes per line, 40 Hz games), matching MAME and its pitfalls, sound boards, speed | `references/porting.md`, "Arcade games" |
+| samples through the DAC, lists back to back, MAME's costs for the kernel | `references/porting.md`, "Lists back to back"; `examples/samples` |
+| RAM: what takes it, the stack, packing tables, build flags | `references/porting.md`, "Memory and the build" |
 
 ## Release it and get it listed
 

@@ -75,12 +75,59 @@ and leave the clock at 150 MHz, which it is timed for.
   taken, or your copy and the console part ways. Make the next list as
   soon as the last is taken. A list that isn't there in time means the
   console runs the last one again, and its sound repeats.
+- **Telling you're behind.** The SDK has no signal for it, but
+  `cvf_frames()` counts every list the console starts, a repeated one
+  too. Count the lists you publish. When `cvf_frames()` has gone up by
+  more than that since the start, the difference is the lists the
+  console ran again. The arcade plugins put it in their note.
 - **The note.** The cart's arcade plugins leave one like
   `60/s 0L 8.7ms s0 h1`: pictures a second, lists the console ran again
   since the start, the slowest list lately, and from `cvf_bus_counts()`
   the addresses the bus loop refused (`s` looked like a select, `h` like
   the header). A few refusals are normal. They are addresses the old loop
   would have acted on.
+
+### Lists back to back
+
+A plugin that plays samples (below, "The sound") makes every list a
+little longer than a frame. The console then goes from one list straight
+into the next without waiting for the frame's start, and a list's length
+is the sample clock. Build it with `parrotcart_frames(mygame
+BACK_TO_BACK)`. That changes nothing on the cart, but the models then
+check each list past 58,536 cycles as a back-to-back one:
+
+- By MAME's costs (below), the list plus the kernel's 459 cycles between
+  lists must come to more than a frame, 59,736. A shorter one makes the
+  console wait for the next frame, a gap in the sound, and the models
+  fail it. So does the MAME step in `test/run.sh`, which counts the
+  lists followed by a wait.
+- Only the first list starts in the vertical blank. The others start
+  wherever the last one ended, so their blank part must be empty and
+  every video write goes in the second part, at 31 cycles a byte.
+- `cvf_frames()` counts the lists the console starts, not TV frames.
+
+`examples/samples` does all of it: 100 samples a list, evenly spaced,
+with runs of the picture between them to fill the time. The cart's
+arcade plugins make each list 60,036 cycles by the header's costs, 300
+over a frame, which is 5,962 samples a second.
+
+The models check a list by the header's costs. MAME 0.288 runs a sound
+byte a cycle faster than the header counts, so size a back-to-back list
+by the header and leave a hundred cycles or so to spare. Then it's long
+enough by either count:
+
+| | `gbkernel.asm`'s header | MAME 0.288 |
+|---|---|---|
+| a video RAM run of n bytes, after the blank | 106 + 31n | the same |
+| sound, n bytes | 75 + 52n | 75 + 51n |
+| from a list's end to the next one's first command, back to back | | 354 (533 with `CONTROLLER2`) |
+| the NMI, once a frame, wherever the list is | | 105 |
+| from the last sample's first write to the next list's first | | 688 |
+
+A list of 100 samples has about 310 sound bytes, so by MAME's costs it's
+about 0.5% shorter than the header says, and its samples play that much
+faster in MAME. That's fine for the sound, but don't expect the header's
+costs to give an exact sample clock.
 
 ## The picture
 
@@ -167,11 +214,9 @@ makes the table: 512 levels, each a choice of the three attenuations,
 from levels measured on a real console, chosen so neighbouring levels
 differ little (the console hears a sample's three writes one at a time).
 The cart's Q*bert, Pac-Man, Donkey Kong and Time Pilot plugins play their
-sound that way, about 6,000 samples a second. Then every list is the
-same length and the console runs the lists back to back, so a list's
-length is the sample clock. Their lists leave the blank part empty and
-put each sample's bytes at its time between the picture's runs (31
-cycles a byte). It's more work than tones, so try tones first.
+sound that way, about 6,000 samples a second, with their lists back to
+back (above, "Lists back to back"). `examples/samples` is the small
+version to start from. It's more work than tones, so try tones first.
 
 ### How loud
 
@@ -197,6 +242,14 @@ arcade plugins measured about 12 dB below it.
   the plugin's lists with `MAME_WAV=plugin.wav tools/mame-replay.sh`, then
   compare them with `python3 tools/wavlevel.py cart.wav plugin.wav`
   (`docs/testing.md`, "How loud"). Then ask the user to listen on a TV.
+- The MAME step needs the ColecoVision BIOS, `coleco.zip`, which the kit
+  can't include. Ask the user for the folder that has it and set
+  `MAME_ROMPATH` to it. Never copy it into the repository. Without it,
+  `python3 tools/listlevel.py lists.bin` works the level out from the
+  lists in the same dBFS, within about half a dB of MAME.
+- To compare with the arcade, `tools/wavlevel.py --span arcade.wav
+  plugin.wav` measures over the arcade's seconds with sound, and
+  `tools/knee.py` says what the knee takes off each part of the mix.
 
 ## Arcade games
 
@@ -306,6 +359,45 @@ differently, and say on the screen which one is missing or wrong. Decode
 the PROMs (palette, colour lookup) when the plugin starts. Never commit a
 ROM; tests read the user's set from a folder they name.
 
+### High scores and settings
+
+A board with battery-backed RAM (CMOS, NVRAM) keeps its high scores and
+settings there. Keep it on the card in the plugin's `HOME`, in the same
+format as MAME's `nvram/<set>/` file, so a user can copy theirs across
+either way. Robotron keeps MAME's `nvram` file as `/ROBOTRON/NVRAM`.
+
+- Make the file once, at its full size, at the start (`fs_create()`),
+  so later writes go to sectors that are already there.
+- Check what you read. A file that's all zeros, or not in the board's
+  format, means a fresh start, as MAME does with no file.
+- Write it during play, a sector a list, and only when it has changed
+  and the game is between waves or at its high-score table. A sector
+  write holds the loop up for a few milliseconds, and one a list doesn't
+  make a list late. Writing a whole file at once would.
+
+### The arcade picture
+
+- **Palettes that change down the screen.** Some boards change pens as
+  the beam draws (Robotron changes its 16 pens line by line). Take the
+  board's picture a line at a time as the beam reaches it, with that
+  line's palette, and note which 8-pixel words and pens changed so
+  the encoder only redoes those.
+- **Not 60 pictures a second.** Star Trek draws 40 pictures a second.
+  Run the game at its own rate and, at each of its frames, make its
+  picture the next one only if the console has had all of the last one.
+  Otherwise skip that frame's picture and let the game run on. It shows
+  about 36 a second that way, and the sound, which is in every list,
+  never waits for the picture.
+- **Vector games.** Draw each vector as a line one pixel wide into a
+  bitmap the size of the TV. On two colours per 8 pixels, the colour
+  drawn last wins. Give way where it matters, as Star Trek's stars' grey
+  gives way to any other colour. Check the nearest-colour map by eye:
+  the nearest TMS9918 colour in OKLab can be the wrong hue (Star Trek's
+  dim olive came out dark red, so it's dark yellow). Small symbols that
+  become specks at the TV's size can be drawn bigger about their own
+  centre, in the same place. To do that only on the right screen, find
+  a vector that only that screen draws (Star Trek's scanner edge).
+
 ### Match MAME exactly
 
 Build the board (its CPUs, memory map, inputs and video and sound
@@ -332,6 +424,41 @@ test it on the Mac against MAME's driver for the game, run headless:
 The Time Pilot and Mr. Do! plugins (under "Where to look") have these
 tests in `test/`: `trace.sh`, `compare.sh` with its Lua dump script,
 `hudcheck.sh` for the margins and `armcount.sh` for the cost below.
+Donkey Kong Jr., Star Trek and Robotron have them too, for boards with
+an 8035, three CPUs, and a 6809 with blitters.
+
+Details in MAME's driver that decide whether the model matches:
+
+- **The ROM layout.** `ROM_LOAD` with `ROM_CONTINUE` puts the pieces of
+  one file at several addresses. Donkey Kong Jr.'s program is three files
+  in ten pieces. Copy the driver's table exactly.
+- **The palette.** Many boards drive resistor networks from PROM bits,
+  sometimes inverted by the monitor. Take the levels from MAME's palette
+  function, not from a guess at the resistors, and check a few colours
+  against MAME's `screen:pixels()`.
+- **When the CPU is held.** A DMA that stops the CPU (Donkey Kong Jr.'s
+  8257 copying the sprites) lets it go at the end of one of MAME's
+  scheduler slices, not when the copy ends. The game's timing depends on
+  it. Model MAME's rule, and let the Mac tests replay MAME's own holds.
+- **The CPU clock.** MAME rounds a divided clock. Robotron's 6808 runs at
+  3,579,545 / 4 rounded up, which moves a sound command by an
+  instruction over a game.
+- **Instructions that delay interrupts.** After some instructions (the
+  6800's TAP, a CLI that clears the mask) MAME runs the next instruction
+  before taking an interrupt. Do the same.
+
+MAME's own tools have pitfalls:
+
+| What | What to do |
+|---|---|
+| The debugger's `tracelog` traces only the CPU the debugger shows, and starting the debugger shows the main CPU | trace the other CPUs from the second frame on, or start a run per CPU |
+| `tracelog` prints nothing before the first frame | compare from frame 2 |
+| The MCS-48's Lua state has no PSW | read it from the debugger's trace, or leave it out of the dump |
+| Lua's `frame_done` runs before the inputs are updated | key the input script to machine time, not to frame callbacks |
+| Lua has no `read_range` | read memory a byte at a time with `read_u8` |
+| MAME stops in the middle of an instruction at a frame's end, so two dumps can differ for one frame | fail a compare only when a difference lasts two frames or more |
+| Some coin circuits ignore the first coin after power-on | tap the coin once at the start of the script, as the Star Trek tests do |
+
 
 ### The sound board
 
@@ -343,6 +470,23 @@ MAME's discrete model of the circuit (MAME's sound code is BSD-3; credit
 it). Record the game in MAME with `-wavwrite` and the plugin with
 `MAME_WAV`, and compare their loudness with `tools/wavlevel.py` and their
 shape by ear and by lining the two up.
+
+MAME often runs a synthesizer circuit far faster than the cart can.
+Star Trek's sound board runs at 2 MHz in MAME. The plugin runs it at two
+steps a sample, about 11,900 a second, and stays within 0.2 dB of MAME's
+level:
+
+- integrate each square wave exactly over the step (the part of the step
+  it's high), instead of sampling it
+- average a noise generator's bit over the step
+- convert each filter to the step's rate (the same cutoff, recomputed
+  for the new step)
+- where a filter is switched in and out, weight it by how long it's in
+  during the step
+
+A speech chip that makes its own samples (an SP0250, a TMS5220) can run
+exactly, and each of the cart's samples is the mean of the chip's
+samples it covers.
 
 ### Is it fast enough
 
@@ -358,8 +502,51 @@ up, send part of it now and the rest next list (Donkey Kong caps a
 picture at 96 changed tiles) rather than slow the game. Count late lists
 in the plugin's note (`cvf_note`), since only the cart has the last word.
 
+The picture is usually the biggest cost, more than the CPUs:
+
+- Redraw only what changed: the tiles that changed and the blocks under
+  sprites, the bands of a scaled picture with a changed line in them, the
+  8-pixel runs whose pixels changed.
+- Give the picture a budget a list. Robotron spends about 0.8 million
+  cycles on it, and a picture that needs more (the whole screen changes
+  between waves) carries on at the next list from that frame's lines. It
+  comes a few frames late, and no list is late.
+- On the M33 a 64-bit divide costs about 100 cycles, and newlib's
+  `memcmp` and `memset` are slow for short runs. Keep them out of hot
+  loops.
+- A delay loop in the game's code (Robotron's sound ROM spends a third
+  of its time in `DECA` / `BNE`) can run all but its last turn at once,
+  which leaves the board as running each instruction would. Check that
+  against the full run.
+- A hook for the Mac tests must not change the board's state. One in
+  Donkey Kong Jr. hid a bug that blanked the score.
+
 ## Memory and the build
 
+An arcade plugin runs out of RAM before it runs out of time. All of it,
+code included, runs from the 507 KB of SRAM, and `.bss` must end below
+`0x2007EC00` (the build says so when it doesn't).
+
+| What | Size |
+|---|---|
+| the frame kernel's buffers in the SDK | about 64 KB |
+| the screen kernel's buffers in the SDK, and a `cvs_t` (its canvas is about 49 KB) | about 64 KB and 66 KB |
+| core 0's stack | 2 KB |
+| a copy of the console's pattern and colour tables | 12 KB |
+
+- The stack is small, so a big array is `static`, never a local.
+- Pack tables. Donkey Kong Jr. keeps its tiles' rotations in 16 KB
+  instead of 64, and its copy of the console's screen in 24 KB instead
+  of 48, by scaling a band at a time.
+- Build the emulator's files with `-O3 -fno-data-sections`, set per file
+  in `CMakeLists.txt` (`set_source_files_properties`), the rest with
+  `-O2`, and the card and start-up code with `-Os`. The SDK's
+  `-fdata-sections` puts each variable in a section of its own, so GCC
+  loads each one's address separately. Without it, GCC reaches all of a
+  file's variables from one base address, which is faster in a hot loop.
+- With GCC 9 a global without `static` and without a value is a COMMON
+  symbol. A linker script of your own (for a cycle counter, say) needs
+  `*(COMMON)` in its `.bss`.
 - Emulator cores usually call `malloc`: add `HEAP`, call
   `cvheap_reserve()` first, and watch `cvheap_largest()`.
 - Remove `printf` and file I/O from the core, or point them at your own
