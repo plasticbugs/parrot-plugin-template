@@ -181,6 +181,14 @@ else()
   endif()
 endif()
 
+# ---- the SDK's optional parts --------------------------------------------------------
+# what a plugin adds to its own CMake sources when it uses it (swzip.c: zip
+# files), as a library, so it fills in only what the plugin's own files
+# don't have: a plugin with its own copy still links
+add_library(sdkextra STATIC "${SDK}/sdk/swzip.c")
+target_include_directories(sdkextra PRIVATE ${includes})
+target_compile_options(sdkextra PRIVATE ${common_options})
+
 # ---- the simulator -----------------------------------------------------------------
 add_executable(parrotsim
   main.c model.c audio.c psg.c input.c card.c extra.c midi.c
@@ -196,7 +204,7 @@ set_source_files_properties("${SDK}/sdk/cvscreen.c" PROPERTIES COMPILE_DEFINITIO
 target_include_directories(parrotsim PRIVATE ${includes})
 target_compile_options(parrotsim PRIVATE ${common_options})
 target_compile_definitions(parrotsim PRIVATE SIM_PLUGIN_ID="${plugin_id}" SIM_PLUGIN_NAME="${plugin_name}" ${plugin_features})
-target_link_libraries(parrotsim PRIVATE SDL3::SDL3 rtmidi)
+target_link_libraries(parrotsim PRIVATE sdkextra SDL3::SDL3 rtmidi)
 if(ZLIB_FOUND)
   target_link_libraries(parrotsim PRIVATE ZLIB::ZLIB)
 else()

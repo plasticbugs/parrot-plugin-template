@@ -179,9 +179,12 @@ the switch.
 
 ## Zip files (`swzip`)
 
-`SDK/swzip.h`. Add `${PARROTCART_SDK}/sdk/swzip.c` to the sources. Enough
-of zip to take a ROM set out of one: stored and deflated entries. It's
-small, not fast.
+`SDK/swzip.h`. Add `${PARROTCART_SDK}/sdk/swzip.c` to the sources in
+`CMakeLists.txt`. Enough of zip to take a ROM set out of one: stored and
+deflated entries. It's small, not fast. The Mac builds need nothing more:
+`test/host/build.sh` and the simulator link the SDK's copy when the
+plugin calls it (and leave it out when the plugin has its own copy in
+`src/`).
 
 | Call | What it does |
 |---|---|

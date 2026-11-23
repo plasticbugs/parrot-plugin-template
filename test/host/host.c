@@ -653,6 +653,12 @@ const cvl_t *cvk_launch(void) { return launched ? &block : NULL; }
 const cvl_t *cvf_launch(void) { return launched ? &block : NULL; }
 bool cvsd_card_in(void) { return card_fd >= 0; }
 bool cvsd_init(void) { now_us += 300000; return card_fd >= 0; }       // a card's start takes a while
+// the card as the menu left it: started, so no wait (false with none, as the
+// cart's says when there's no card that answers)
+bool cvsd_resume(void) {
+    sd_info.resumed = card_fd >= 0;
+    return card_fd >= 0;
+}
 const cvsd_info_t *cvsd_info(void) { return &sd_info; }
 
 bool cvsd_read(uint32_t lba, uint8_t *buf) {
