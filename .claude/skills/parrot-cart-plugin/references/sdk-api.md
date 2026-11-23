@@ -133,6 +133,9 @@ the neighbours are 0.
 - Either kernel, with USB pad 1 as player 1: `SDK/cvinput.h`
   (`cvin_init`, `cvin_report` or `cvin_frame`, `cvin_update`,
   `cvin_pressed`, `cvin_key`).
+- An arcade dial or spinner: `lib/dial/dial.h` (the kit's).
+  `dial_init(&d)`, then once a frame `dial_update(&d, left, right)` with
+  the console's stick, which adds USB pad 1 (PADS) and the mouse (MOUSE).
 
 ## Sound
 

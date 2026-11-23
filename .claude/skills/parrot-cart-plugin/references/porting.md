@@ -281,6 +281,11 @@ Read the pad yourself, as below, and not through `cvin_update()`. That
 one presses * and # with the pad's top and left buttons, which in an
 arcade game would be coins.
 
+A game with a dial or spinner (Star Trek, Tempest) takes it from
+`lib/dial/dial.h`: `dial_update(&dial, left, right)` once a list gives
+the dial's move from the stick held left or right (faster the longer
+it's held), a pad's left stick in proportion, and a mouse's x.
+
 A twin-stick game moves with controller 1's stick and fires the way
 controller 2's stick points, in 8 directions. Build it with
 `parrotcart_frames(mygame CONTROLLER2)` so the kernel reads controller 2.
