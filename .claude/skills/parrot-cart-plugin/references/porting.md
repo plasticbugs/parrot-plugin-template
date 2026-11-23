@@ -9,6 +9,8 @@ The published plugins are worked examples, each with its full source:
 | Master System, Game Gear | `parrot-plugin-sms-gamegear` | SMS Plus (GPL) | another machine on `nescv` |
 | PC Engine | `parrot-plugin-pcengine` | PCE-GO (GPL-2.0) | a picture bigger than the TV: view keys and squeezing |
 | Vectrex | `parrot-plugin-vectrex` | its own, following MAME's Vectrex driver (BSD-3-Clause) | vectors drawn into a bitmap |
+| Star Wars, The Empire Strikes Back | `parrot-plugin-starwars`, `parrot-plugin-esb` | their own boards, following MAME's Atari Star Wars driver (BSD-3-Clause) | an arcade vector game drawn into a bitmap, the TMS5220's speech through the DAC, a flight yoke on the stick |
+| Donkey Kong, Time Pilot, Mr. Do! and the other arcade games | `parrot-plugin-dkong`, `parrot-plugin-timeplt`, `parrot-plugin-mrdo`, ... | their own boards, following MAME's drivers (BSD-3-Clause) | a portrait screen at 3/4 with the HUD in the margins, the sound CPU, tests against MAME (Time Pilot's and Mr. Do!'s `test/`) |
 | SCUMM | `parrot-plugin-scumm` | ScummVM's SCUMM engine (GPL) | a 900 KB plugin run from flash (`XIP`), a mouse pointer as a sprite, MIDI out to a computer |
 
 They are at `https://github.com/plasticbugs/<repository>`. Read the one
@@ -241,6 +243,20 @@ if (coin) coin_wait = 3; else if (coin_wait) coin_wait--;
 const bool coin_switch = coin_left > 0;             // the game's coin input for this list
 if (coin_left) coin_left--;
 ```
+
+Arcade controls the console doesn't have go on what it does have, and
+the README says how:
+
+- **A spinner or dial** goes on the stick: hold left or right to turn,
+  faster the longer it's held, up to about the arcade's top speed. On a
+  USB pad, the left stick's x turns in proportion.
+- **A yoke or analog stick** follows the stick: it moves toward the end
+  the stick points to and springs back to the middle when it's let go,
+  as in Star Wars. On a USB pad, the left stick sets it directly.
+- **More buttons than two**: the two most used get the fire buttons
+  (`GP_SOUTH` and `GP_EAST` on a pad), the next go on the stick's up and
+  down if the game doesn't use them, and the rest on keypad keys other
+  than 1, 2, * and # (and on `GP_WEST`, `GP_NORTH`, `GP_L` and `GP_R`).
 
 The pads need nothing more from the plugin. The SDK finds a pad that's
 already on a powered hub when the plugin starts, and one plugged in or
