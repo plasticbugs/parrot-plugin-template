@@ -11,6 +11,22 @@
                                     the console's 15 colours (emulators'
                                     palettes differ a little)
 
+For looking at pictures while you work (not for the registry):
+
+    png256.py halve IN.png OUT.png  half the size each way, each 2x2 block
+                                    its most common colour (a MAME snapshot
+                                    at 2x back to 1x, colours unchanged)
+    png256.py side OUT.png A.png B.png ...
+                                    side by side, 8 pixels apart; with two of
+                                    the same size, a third shows where they
+                                    differ (in magenta, the rest dimmed)
+    png256.py sheet OUT.png [--cols N] IN.png ...
+                                    a contact sheet: the pictures in a grid,
+                                    N to a row (4), in the order given
+
+The console's colours as a C header, for previews a test writes itself:
+`lib/tms9918_rgb.h`, the same values as TMS below.
+
 Reads 8-bit RGB, RGBA and palette PNGs that aren't interlaced, which is what
 MAME, openMSX and this kit write.
 """
@@ -87,6 +103,34 @@ def write(path, rows):
     open(path, "wb").write(b"\x89PNG\r\n\x1a\n" + body + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
 
 
+def blank(w, h, c=(48, 48, 48)):
+    return [[c] * w for _ in range(h)]
+
+
+def paste(dst, rows, x0, y0):
+    for y, r in enumerate(rows):
+        dst[y0 + y][x0:x0 + len(r)] = r
+
+
+def halve(rows):
+    out = []
+    for y in range(0, len(rows) - 1, 2):
+        a, b = rows[y], rows[y + 1]
+        line = []
+        for x in range(0, len(a) - 1, 2):
+            px = [a[x], a[x + 1], b[x], b[x + 1]]
+            line.append(max(px, key=px.count))        # ties: the first, top left
+        out.append(line)
+    return out
+
+
+def differ(a, b):
+    memo = {}
+    near = lambda px: memo.setdefault(px, nearest(px))
+    return [[(255, 0, 255) if near(pa) != near(pb) else tuple(v // 3 for v in pa) for pa, pb in zip(ra, rb)]
+            for ra, rb in zip(a, b)]
+
+
 def nearest(px):
     return min(range(1, 16), key=lambda i: sum((a - b) ** 2 for a, b in zip(px, TMS[i])))
 
@@ -124,6 +168,37 @@ def main():
             x, y = diff[0]
             sys.exit(f"{len(diff)} pixels differ, the first at {x},{y}: {a[y][x]} against {b[y][x]}")
         print(f"the same picture ({wa}x{ha})")
+    elif cmd == "halve" and len(args) == 2:
+        w, h, rows = read(args[0])
+        write(args[1], halve(rows))
+        print(f"{args[1]}: {w // 2}x{h // 2} from {w}x{h}")
+    elif cmd == "side" and len(args) >= 3:
+        pics = [read(p) for p in args[1:]]
+        panels = [r for _, _, r in pics]
+        if len(pics) == 2 and pics[0][:2] == pics[1][:2]:
+            panels.append(differ(panels[0], panels[1]))
+        gap = 8
+        out = blank(sum(len(r[0]) for r in panels) + gap * (len(panels) + 1), max(len(r) for r in panels) + 2 * gap)
+        x = gap
+        for r in panels:
+            paste(out, r, x, gap)
+            x += len(r[0]) + gap
+        write(args[0], out)
+        print(f"{args[0]}: {len(panels)} side by side" + (" (the third: where they differ)" if len(panels) == 3 and len(pics) == 2 else ""))
+    elif cmd == "sheet" and len(args) >= 2:
+        out_path, rest, cols = args[0], args[1:], 4
+        if rest[:1] == ["--cols"]:
+            cols, rest = int(rest[1]), rest[2:]
+        if not rest:
+            sys.exit(__doc__)
+        pics = [read(p)[2] for p in rest]
+        cw, ch, gap = max(len(r[0]) for r in pics), max(len(r) for r in pics), 4
+        n_rows = (len(pics) + cols - 1) // cols
+        out = blank(gap + min(cols, len(pics)) * (cw + gap), gap + n_rows * (ch + gap))
+        for i, r in enumerate(pics):
+            paste(out, r, gap + (i % cols) * (cw + gap), gap + (i // cols) * (ch + gap))
+        write(out_path, out)
+        print(f"{out_path}: {len(pics)} pictures, {cols} to a row")
     else:
         sys.exit(__doc__)
 

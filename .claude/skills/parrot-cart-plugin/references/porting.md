@@ -462,6 +462,12 @@ MAME's own tools have pitfalls:
 | MAME stops in the middle of an instruction at a frame's end, so two dumps can differ for one frame | fail a compare only when a difference lasts two frames or more |
 | Some coin circuits ignore the first coin after power-on | tap the coin once at the start of the script, as the Star Trek tests do |
 
+To look at pictures, `tools/png256.py side OUT.png mame.png plugin.png`
+puts two side by side with a third panel marking where they differ,
+`sheet` makes a contact sheet of many, and `halve` takes a 2x snapshot
+back to 1x. `lib/tms9918_rgb.h` has the console's colours for previews a
+test writes itself.
+
 
 ### The sound board
 
