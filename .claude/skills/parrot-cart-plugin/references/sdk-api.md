@@ -87,7 +87,7 @@ because the SDK sends only what changed.
 | `cvf_publish(list, n)` | the console runs it at the next frame's start |
 | `cvf_input(&joy, &fire, &key)` | controller 1 as the kernel read it, low means pressed (or use `cvinput.h`) |
 | `cvf_input2(&joy, &fire, &key)` | controller 2, the same way. Only with `parrotcart_frames(myplugin CONTROLLER2)`, which makes the kernel's start cost 660 cycles instead of 480 |
-| `cvf_on_exit(fn)` | runs once on the way back to the menu, with the console parked: write saves here |
+| `cvf_on_exit(fn)` | runs once on the way back to the menu, with the console parked: write saves here. It has `CVF_EXIT_MS` (3 s), then the watchdog reboots into the menu |
 | `cvf_note(text)` | the note for the menu |
 | `cvf_bus_counts(&unsel, &early, &unhdr)` | what the bus loop refused since the start: addresses that looked like a select, selects taken as their read ended, addresses that looked like the header. For the note |
 
@@ -235,6 +235,13 @@ Match entries by `e.crc` against the CRCs in MAME's driver for the game.
   none). Open it with `cvsd_open_launched()`, not by `path`.
 - `cvk_note(text)` / `cvf_note(text)`: up to 32 characters, shown on the
   menu's bottom line after RESET.
+- `cvk_on_exit(fn)` / `cvf_on_exit(fn)`: fn runs once on the way back
+  (RESET, the controllers' way back, the console off), with core 1
+  stopped and the console parked, for the last save. It has 3 seconds
+  (`CVK_EXIT_MS`, `CVF_EXIT_MS`); then the watchdog reboots into the menu,
+  without the note if fn hadn't returned. It may call the note and the
+  card; the task function does nothing then. It doesn't run when the
+  power goes, so save as you go too (`docs/features.md`, "Saves").
 - Back to the menu from the controllers (`SDK/cvhome.h`): the task
   function goes back when both fire buttons and `*`, or a USB pad's Select
   and Start, are held for 2 seconds. The plugin sees the buttons as usual

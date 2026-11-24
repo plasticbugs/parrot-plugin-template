@@ -222,6 +222,14 @@ won't forgive. Each one has a reason.
   every 100 ms. Call `cvusb_pad()`, or use `cvinput.h`.
 - **Leave a note** for the menu's bottom line when there's something to
   say: `cvk_note("Saved")`, 32 characters at most.
+- **Save as you go, and the last changes on the way out.** The console
+  can be switched off at any time, which cuts the cart's power, so write
+  a save when something worth keeping changes. Keep two copies with a
+  count and a checksum for a save a power cut must not lose.
+  `cvk_on_exit(fn)` / `cvf_on_exit(fn)` runs fn on the way back to the
+  menu for the last changes. It has 3 seconds before the watchdog
+  reboots into the menu, and the models fail a plugin that takes longer
+  (`docs/features.md`, "Saves").
 - **Arcade games share their keys**: keypad * or # adds a coin, 1 and 2
   start a one- or two-player game, and on a USB pad - is a coin and + a
   start (`references/porting.md`, "Arcade games").

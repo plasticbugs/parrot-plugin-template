@@ -652,13 +652,15 @@ static void psram_start(void) {
 // SAVE_FILE in SAVE_FOLDER, 512 bytes, found or made at the start, and the
 // folder made too if it isn't there. Its layout is yours. Keep SAVE_MAGIC at
 // its start, and change its last character when the layout changes, so a
-// new release can tell an old save.
+// new release can tell an old save. Save as things change (save_write()),
+// and save_on_exit() writes the last changes on the way back to the menu.
 #define SAVE_FOLDER "@SAVE_FOLDER@"
 #define SAVE_FILE   "@SAVE_FILE@"
 #define SAVE_MAGIC  "@SAVE_MAGIC@"
 typedef struct {
     char magic[8];
     uint32_t runs;              // how many times the plugin has started
+    uint32_t left;              // how many times it has gone back to the menu (save_on_exit())
     // YOUR CODE: what your plugin keeps
 } save_t;
 static save_t save;
@@ -674,6 +676,15 @@ static bool save_write(void) {
     memset(sector, 0, sizeof sector);
     memcpy(sector, &save, sizeof save);
     return fs_write_sec(&fs, 0, sector) == FS_OK;
+}
+
+// On the way back to the menu (RESET, the controllers' way back), with the
+// console parked: the last changes. It has @EXIT_MS@ (3 seconds) before the
+// watchdog reboots into the menu without it, and it doesn't run when the
+// power goes, so save what matters as it changes too.
+static void save_on_exit(void) {
+    save.left++;
+    save_write();
 }
 
 // A folder such as "/GAMES/MINE", one level at a time: found, or made with
@@ -726,6 +737,7 @@ static void save_start(void) {
             save_ok = true;
             save.runs++;
             if (!save_write()) why = "THE SAVE DIDN'T WRITE";
+            @ON_EXIT@(save_on_exit);
         }
     }
     if (why) say(ROW_SAVE, C_LRED, "SAVE: %s", why);
@@ -1134,6 +1146,8 @@ def main_c(p):
         "MIDI_OUT_TO": ("To the computer when the cart is its MIDI device, or to a MIDI\n// keyboard on the hub."
                         if p.has("midi-in") else "To the computer: the cart is its MIDI device."),
         "SAVE_FOLDER": p.save_folder,
+        "EXIT_MS": "CVF_EXIT_MS" if p.screen == "frames" else "CVK_EXIT_MS",
+        "ON_EXIT": "cvf_on_exit" if p.screen == "frames" else "cvk_on_exit",
         "SAVE_FILE": p.save_file,
         "SAVE_MAGIC": p.save_magic,
         "STEP_HEADER": ("// ---- the step: " + ("50 times a second " if p.screen == "text" else "every TV frame ")).ljust(92, "-"),
@@ -1348,9 +1362,9 @@ TESTS_NOTE = """# Each run fails on any rule the models see (test/host/host.c). 
 
 # what the card tests check, in both blocks: the save the template writes
 SAVE_NOTE = ["    # The save src/main.c writes as it comes: SAVE_FILE in SAVE_FOLDER, 512 bytes,",
-             "    # SAVE_MAGIC then a run count at byte 8. When your plugin saves something",
-             "    # else, change save= and magic=, or check your own file in place of the",
-             "    # last line."]
+             "    # SAVE_MAGIC then a run count at byte 8, and its exit function's last",
+             "    # write on the way back. When your plugin saves something else, change",
+             "    # save= and magic=, or check your own file in place of the last line."]
 
 
 def test_block(p):
@@ -1367,7 +1381,7 @@ def test_block(p):
                 f"    PC_END=1500 run {t}-nocard \"$kit/src\" 'back to the menu'",
                 "    card \"MS-DOS FAT32:MBRSPUD:fat32\"" + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
                 "    for n in 1 2; do",
-                f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu'",
+                f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu' \"on_exit's function\"",
                 "    done",
                 '    card_check fat32 "MS-DOS FAT32" 2 "$save" "$magic"',
                 "fi"]
@@ -1400,7 +1414,7 @@ def sim_test_block(p):
                 '    tree "$out/card"' + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
                 "    for n in 1 2; do",
                 f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" --ms 2500",
-                "        expect 'back to the menu'",
+                "        expect 'back to the menu' \"on_exit's function\"",
                 "    done",
                 '    save_check "$out/card$save" "$magic" 2',
                 "fi"]

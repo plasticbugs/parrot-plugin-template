@@ -32,3 +32,8 @@ also, from elsewhere:
   firmware/revc/sdk/cvsd.h
       the kit's own: 4070e7f's with cvsd_card_in()'s comment matching
       cvsd.c (it sets up the pins itself, so it works before cvsd_init())
+  firmware/revc/sdk/cvkernel.c/.h, cvframes.c/.h and README.md
+      the kit's own: cvk_on_exit() for the screen kernel, and both exit
+      functions bounded by the watchdog (CVK_EXIT_MS, CVF_EXIT_MS), with
+      the task functions doing nothing while one runs. Not in the cart's
+      repository yet: put it there before the next tools/update-sdk.sh

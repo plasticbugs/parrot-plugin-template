@@ -173,7 +173,10 @@ void cvk_list(const uint8_t *list, size_t n, bool full, uint8_t seq) {
 // ---- reports --------------------------------------------------------------------------
 static uint32_t seen[4], heard_at[4];
 
+static volatile bool leaving;               // on the way back: the exit function runs, the tasks do nothing
+
 bool cvk_report(uint32_t t, int *kind, uint8_t *bits) {
+    if (leaving) return false;              // (core 1 has stopped)
     for (uint k = 0; k < 4; k++) {
         uint32_t c = report_n[k];
         if (c == seen[k]) continue;
@@ -229,11 +232,24 @@ static inline void watch(uint32_t in, uint32_t t) {
 }
 
 // the menu is the flash's boot image (a watchdog reboot is a normal boot);
-// the outputs go off first, so the parked console reads $00 until it's served
+// the outputs go off first, so the parked console reads $00 until it's served.
+// The plugin's exit function runs then, with the watchdog set to
+// CVK_EXIT_MS, so the reboot comes whatever it does (handoff.asm waits for
+// a title as long as it takes).
+static void (*on_exit)(void);
+void cvk_on_exit(void (*fn)(void)) { on_exit = fn; }
+
 static void __attribute__((noreturn)) to_menu_now(uint32_t why) {
     multicore_reset_core1();
     ht_mark(HT_Y_RESET, timer_hw->timerawl, HM_REBOOT, why);
     sio_hw->gpio_oe_clr = PD_MASK;
+    void (*fn)(void) = on_exit;
+    on_exit = NULL;                         // once, whatever it does
+    if (fn && !leaving) {
+        leaving = true;
+        watchdog_enable(CVK_EXIT_MS, true); // its time: then a normal boot, into the menu
+        fn();
+    }
     cvl_t *b = CVL_BLOCK;
     if (cvl_ok(b)) cvl_return(b, note[0] ? note : NULL);   // started by the menu: what to say
     watchdog_reboot(0, 0, 1);
@@ -282,6 +298,7 @@ static uint32_t t_menu;
 static bool titled;
 
 void cvk_task(uint32_t t) {
+    if (leaving) return;                    // (the exit function calls it)
     watch(sio_hw->gpio_in, t);
     if (to_menu && !t_menu) {
         t_menu = t | 1;

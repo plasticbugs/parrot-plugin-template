@@ -214,6 +214,30 @@ saves, and its `src/main.c` opens the file the menu started it with and
 shows the file's name and size. That plugin writes nothing, so it doesn't
 make its home folder. Use `fs_mkdir()` when it needs one.
 
+#### Saves
+
+A write takes milliseconds, and the console can be switched off at any
+moment, which cuts the cart's power too. So:
+
+- Save as you go: when something worth keeping changes (a level done, a
+  setting, a pattern edited). For changes that come fast, write a second
+  or two after the last one rather than at each.
+- To be safe from a power cut in the middle of a write, keep two copies
+  with a count and a checksum in each, write over the older one, and at
+  the start take the newer one that checks out.
+- On the way back to the menu, `cvk_on_exit(fn)` (the screen kernel) or
+  `cvf_on_exit(fn)` (the frame kernel) runs fn once, with the console
+  parked: after RESET, the controllers' way back, or the console going
+  off while the cart still has power. It's for the last changes. It has
+  3 seconds (`CVK_EXIT_MS`, `CVF_EXIT_MS`): then the watchdog reboots
+  into the menu, without the note if fn hadn't returned, so the menu
+  always comes back. It doesn't run when the power goes.
+
+The models run the exit function on the way back too, and fail a plugin
+whose exit function runs past its time. A plugin made by
+`tools/new-plugin.py` with saves writes its save at the start and in its
+`save_on_exit()`.
+
 ## What it costs
 
 A plugin runs from the cart's RAM, which is about 500 KB, so its code

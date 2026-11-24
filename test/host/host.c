@@ -20,7 +20,10 @@
 //
 // It ends at PC_END milliseconds, as if RESET had been pressed, or when the
 // script holds both fire buttons and * (joy=fire+fire2 key=*), or a USB
-// pad's Select and Start (pad=minus+plus), for 2 seconds (cvhome.h): the screen
+// pad's Select and Start (pad=minus+plus), for 2 seconds (cvhome.h). The
+// plugin's exit function (cvk_on_exit, cvf_on_exit) runs then, as on the
+// cart, with its time on this clock: past it, the watchdog's reboot cuts it
+// off and the run fails. Then the screen
 // is written to PC_OUT/screen.png (256x192, the size a registry screenshot
 // must be), what happened to PC_OUT/log.txt, and every list the plugin sent
 // to PC_OUT/lists.bin, which tools/mame-replay.sh plays to the real kernel
@@ -75,6 +78,7 @@
 // declares them only when asked (macOS's always does).
 #define _DEFAULT_SOURCE
 #include <fcntl.h>
+#include <setjmp.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -150,8 +154,9 @@ static void fail(const char *fmt, ...) {
     SIM_FAIL();
 }
 
-uint32_t time_us_32(void) { now_us += 100; return (uint32_t)now_us; }
-uint64_t time_us_64(void) { now_us += 100; return now_us; }
+static void exit_watchdog(void);
+uint32_t time_us_32(void) { now_us += 100; exit_watchdog(); return (uint32_t)now_us; }
+uint64_t time_us_64(void) { now_us += 100; exit_watchdog(); return now_us; }
 static void clock_to(uint64_t t);
 void sleep_ms(uint32_t ms) { clock_to(now_us + (uint64_t)ms * 1000); }
 void sleep_us(uint64_t us) { clock_to(now_us + us); }
@@ -232,6 +237,7 @@ static void clock_to(uint64_t t) {
         timers_run();
     }
     if (t > now_us) now_us = t;
+    exit_watchdog();
 }
 
 alarm_id_t add_alarm_at(absolute_time_t t, alarm_callback_t callback, void *user_data, bool fire_if_past) {
@@ -476,8 +482,9 @@ const uint8_t cvk_silence[10] = {0x80, 0x00, 0x9F, 0xA0, 0x00, 0xBF, 0xC0, 0x00,
 // waiting for fire) works on the Mac and shows black or garbage on a
 // console. One blocking step, like starting the card, doesn't poll and is
 // fine; polling for more than 100 ms without the task call is the bug.
+static bool leaving;                    // the exit function runs: core 1 has stopped, the console calls do nothing
 static void polled(const char *task) {
-    if (task_failed || now_us - t_task <= 100000) return;
+    if (leaving || task_failed || now_us - t_task <= 100000) return;
     task_failed = true;
     fail("the plugin polled the console for %u ms without calling %s: on a real console the screen stays "
          "black or garbage and RESET can't get back to the menu. Call it on every pass of every loop, title "
@@ -491,6 +498,7 @@ bool cvk_console_on(void) { return true; }
 
 bool cvk_report(uint32_t t, int *kind, uint8_t *bits) {
     (void)t;
+    if (leaving) return false;
     polled("cvk_task()");
     console_step();
     if (!k_rep_n) return false;
@@ -564,7 +572,7 @@ size_t cvs_update(cvs_t *s, cvs_draw_fn draw, void *ctx, uint8_t *list, size_t m
 static uint8_t f_vram[0x4000], f_reg[8] = {0x02, 0xE0, 0x06, 0xFF, 0x03, 0x36, 0x07, 0x01};
 static struct { bool waiting; size_t n; uint8_t bytes[CVF_LIST_MAX]; } f_list;
 static uint32_t f_frames, f_taken, f_worst_vb, f_worst_all, f_psg_bytes;
-static void (*f_exit)(void);
+static void (*f_exit)(void), (*k_exit)(void);
 
 // Back to back (porting.md, "The sound"): a plugin that plays samples makes
 // every list a little longer than a frame, and the console goes from one
@@ -754,6 +762,34 @@ void cvf_home(bool on) { cvk_home(on); }
 void cvf_note(const char *s) { cvk_note(s); }
 void cvf_note_now(void) {}
 void cvf_on_exit(void (*fn)(void)) { f_exit = fn; }
+void cvk_on_exit(void (*fn)(void)) { k_exit = fn; }
+
+// the exit function, on the way back to the menu, as the cart runs it: with
+// the watchdog set to its time (CVK_EXIT_MS, CVF_EXIT_MS) on the models'
+// clock. If the time runs out first, the cart reboots into the menu where it
+// was, without the note, and so does this, with a FAIL. True if it returned.
+static jmp_buf exit_jmp;
+static uint64_t exit_end;
+static void exit_watchdog(void) {
+    if (leaving && exit_end && now_us > exit_end) longjmp(exit_jmp, 1);
+}
+static bool exit_run(void (*fn)(void), unsigned ms, const char *name) {
+    if (!fn) return true;
+    leaving = true;
+    const uint64_t t0 = now_us;
+    if (setjmp(exit_jmp)) {
+        exit_end = 0;
+        fail("%s's function didn't return in its %u ms: on the cart the watchdog reboots into the menu then, "
+             "without the note, and what it hadn't written is lost. Save as you go, and leave only the last "
+             "changes for it", name, ms);
+        return false;
+    }
+    exit_end = t0 + (uint64_t)ms * 1000;
+    fn();
+    exit_end = 0;
+    logline("%s's function: %u ms of its %u", name, (unsigned)((now_us - t0) / 1000), ms);
+    return true;
+}
 uint32_t cvf_frames(void) { polled("cvf_task()"); console_step(); return f_frames; }
 bool cvf_waiting(void) { return f_list.waiting; }
 bool cvf_console_on(void) { return true; }
@@ -810,12 +846,14 @@ const cvsd_info_t *cvsd_info(void) { return &sd_info; }
 
 bool cvsd_read(uint32_t lba, uint8_t *buf) {
     now_us += 600;
+    exit_watchdog();
     sd_info.rd_sectors++;
     return card_fd >= 0 && pread(card_fd, buf, 512, (off_t)lba * 512) == 512;
 }
 
 bool cvsd_write(uint32_t lba, const uint8_t *buf) {
     now_us += 3000;
+    exit_watchdog();                    // (a write the watchdog cuts off doesn't happen)
     sd_info.wr_sectors++;
     return card_fd >= 0 && pwrite(card_fd, buf, 512, (off_t)lba * 512) == 512;
 }
@@ -1125,8 +1163,9 @@ static void finish(void) {
     if (f_on) f_frame();
     if (f_b2b_lists)
         logline("%u lists back to back, %u to %u T each by MAME's costs, %u run again", f_b2b_lists, f_b2b_min, f_b2b_max, f_reruns);
-    logline("%s: back to the menu, its bottom line \"%s\"", end_why ? "the controllers" : "RESET", note);
-    if (f_exit) f_exit();
+    const bool returned = exit_run(k_exit, CVK_EXIT_MS, "cvk_on_exit") && exit_run(f_exit, CVF_EXIT_MS, "cvf_on_exit");
+    if (returned) logline("%s: back to the menu, its bottom line \"%s\"", end_why ? "the controllers" : "RESET", note);
+    else logline("%s: back to the menu where it was, with no note (the watchdog)", end_why ? "the controllers" : "RESET");
     if (k_on && cvs_seen && memcmp(k_vram, cvs_seen->vdp.vram, VRAM_SIZE)) fail("the console's VRAM isn't what the SDK thinks it is");
     snapshot("screen");
     printf("  %u ms, %u lists", (unsigned)(now_us / 1000), lists_sent);
@@ -1160,6 +1199,7 @@ static void home_step(void) {
 }
 
 static void console_step(void) {
+    if (leaving) return;
     timers_run();
     while (now_us >= next_frame) {
         script_step(next_frame);        // (the words due by this frame, when the clock has jumped past several)

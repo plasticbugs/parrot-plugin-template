@@ -50,10 +50,17 @@ void cvf_home(bool on);
 // the menu's bottom line when the plugin goes back (at most 32 characters)
 void cvf_note(const char *note);
 
-// fn runs once on the way back to the menu, after RESET or the console going
-// off (not through cvf_menu_now, a fault's way): core 1 has stopped and the console is parked in
-// its RAM (or off), so it may take its time, a game's save to the card say.
-// It may call cvf_note(); it must feed the watchdog if one runs.
+// fn runs once on the way back to the menu, after RESET, the controllers'
+// way back or the console going off (not through cvf_menu_now, a fault's
+// way): core 1 has stopped and the console is parked in its RAM (or off),
+// so it has time for a game's save to the card. It has CVF_EXIT_MS: the
+// watchdog is set to that before fn runs, and reboots into the menu if fn
+// hasn't returned, so the menu always comes back (where it was, without
+// the note, when fn runs out of time). It may call cvf_note(); cvf_task()
+// does nothing then. A feed of the watchdog gives it CVF_EXIT_MS more, so
+// feed it only while the save is getting somewhere. It doesn't run when
+// the power goes (docs/features.md).
+#define CVF_EXIT_MS 3000
 void cvf_on_exit(void (*fn)(void));
 
 // the note in the return block now, as if going back: it stays there through

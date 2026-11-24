@@ -92,6 +92,12 @@ A plugin needs to follow these rules:
   (`cvsd_open_launched`) instead of by its path.
 - Leave a note (`cvk_note("Saved")`) for the menu's bottom line when the
   plugin goes back. It can be up to 32 characters.
+- `cvk_on_exit(fn)` runs fn once on the way back to the menu (RESET, the
+  controllers' way back, the console switched off), with core 1 stopped
+  and the console parked. It's for the last save, of what changed since
+  the plugin last saved. It has `CVK_EXIT_MS` (3 seconds): the watchdog
+  then reboots into the menu, so the menu always comes back. It doesn't
+  run when the power goes, so save as you go too.
 
 ## USB features: `cvusb`
 
@@ -226,7 +232,9 @@ for (;;) {
 - `cvf_on_exit(fn)` runs fn once on the way back to the menu (on RESET,
   or when the console is switched off), with the console parked. It's a
   good time to write a save, as the Game Boy plugin does with its `.sav`.
-  The function can also leave a note.
+  The function can also leave a note. It has `CVF_EXIT_MS` (3 seconds)
+  before the watchdog reboots into the menu; each feed of the watchdog
+  gives it that again.
 
 `../gbcv/plugin` is the second example. It's the menu's Game Boy mode as
 a plugin, with saves on the card and USB pads. Its Mac test runs `gb.c`

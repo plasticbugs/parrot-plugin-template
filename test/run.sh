@@ -317,6 +317,40 @@ if wanted timers; then
     if [ -n "$at" ] && [ "$at" -ge 500 ] && [ "$at" -le 520 ]; then echo "  the 500 ms alarm: seen at $at ms"
     else echo "  FAIL: the 500 ms alarm was first seen at ${at:-no time}"; status=1; fi
 fi
-
+# the screen kernel's exit function (cvk_on_exit; test/leave/main.c): half
+# a second passes, and 5 seconds, past its CVK_EXIT_MS, fails, as the
+# watchdog would cut it off. Then the console's side in MAME
+# (test/leave/leave.lua): parked, it waits out 4 s of $00 for the menu,
+# after RESET and after the controllers' way back
+if wanted leave; then
+    PC_END=1500 PC_SCRIPT="500:key=1 700:key=" run leave "$kit/test/leave" \
+        "cvk_on_exit's function: 50[0-9] ms of its 3000" 'bottom line "left after 500 ms"'
+    o=$out/leave-late
+    rm -rf "$o"; mkdir -p "$o"
+    echo leave-late
+    if PC_OUT=$o PC_END=1500 PC_SCRIPT="500:key=2 700:key=" "$out/leave/run" >"$o/out.txt"; then
+        echo "  FAIL: the model passed an exit function that runs 2 s past its time"; status=1
+    elif grep -q "didn't return in its 3000 ms" "$o/out.txt" && grep -q 'with no note (the watchdog)' "$o/log.txt"; then
+        echo "  the model fails it, as it should: the watchdog cuts it off at 3000 ms"
+    else
+        echo "  FAIL: the model failed it for something else:"; head -3 "$o/out.txt" | sed 's/^/    /'; status=1
+    fi
+    if [ $have_mame = 1 ]; then
+        m=$out/leave-mame
+        rm -rf "$m"; mkdir -p "$m"
+        (cd "$m" && sjasmplus --nologo "$kit/sdk/firmware/revc/midihello/midihello.asm" >/dev/null 2>&1 &&
+            sjasmplus --nologo "$kit/sdk/firmware/revc/midihello/handoff.asm" >/dev/null 2>&1)
+        for how in reset combo; do
+            LEAVE_KERNEL=$m/mhkernel.bin LEAVE_HANDOFF=$m/handoff.bin LEAVE_HOW=$how LEAVE_GAP=4 \
+                SDL_VIDEODRIVER=dummy mame coleco ${MAME_ROMPATH:+-rompath "$MAME_ROMPATH"} -cart "$m/mhkernel.bin" \
+                -video none -videodriver dummy -window -nomaximize -sound none \
+                -nothrottle -skip_gameinfo -seconds_to_run 30 \
+                -cfg_directory "$m/cfg" -nvram_directory "$m/nvram" \
+                -autoboot_script "$kit/test/leave/leave.lua" 2>&1 | grep '^leave:' >"$m/$how.txt" || true
+            if grep -q '| ok$' "$m/$how.txt"; then echo "  MAME, $how: the parked console waits out 4 s of \$00, then boots the menu"
+            else echo "  FAIL in MAME ($how): $(cat "$m/$how.txt")"; status=1; fi
+        done
+    fi
+fi
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
 exit $status

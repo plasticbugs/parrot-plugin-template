@@ -15,8 +15,8 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames samples two-controllers psram lua vdp usb font timers. Pictures and
-# logs: build-sim/test/.
+# sd-card open-file frames samples two-controllers psram lua vdp usb font
+# timers leave. Pictures and logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
 # told not to turn the card's "/NOTES/..." into a path on this computer)
@@ -292,6 +292,11 @@ fi
 if wanted timers; then
     run timers "$kit/test/timers" --ms 1000
     expect 'note "timers 4[89][0-9] 9[0-9] 1 0 50"'
+fi
+# the screen kernel's exit function, as test/run.sh's leave
+if wanted leave; then
+    run leave "$kit/test/leave" --ms 1500 --script "500:key=1 700:key="
+    expect "cvk_on_exit's function: 50[0-9] ms of its 3000" 'bottom line "left after 500 ms"'
 fi
 
 [ $compared = 0 ] && echo "(no test/host pictures to compare with: test/run.sh hasn't run here)"

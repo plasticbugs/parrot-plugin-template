@@ -268,7 +268,11 @@ static inline void watch(uint32_t in, uint32_t t) {
 
 // the menu is the flash's boot image (a watchdog reboot is a normal boot);
 // the outputs go off first, so the parked console reads $00 until it's served
+// The plugin's exit function runs then, with the watchdog set to
+// CVF_EXIT_MS, so the reboot comes whatever it does (handoff.asm waits for
+// a title as long as it takes).
 static void (*on_exit)(void);
+static volatile bool leaving;               // the exit function runs: cvf_task() does nothing
 void cvf_on_exit(void (*fn)(void)) { on_exit = fn; }
 
 static void __attribute__((noreturn)) to_menu_now(uint32_t why) {
@@ -277,7 +281,11 @@ static void __attribute__((noreturn)) to_menu_now(uint32_t why) {
     sio_hw->gpio_oe_clr = PD_MASK;
     void (*fn)(void) = on_exit;
     on_exit = NULL;                         // once, whatever it does
-    if (fn && why != 4) fn();               // (4: a fault: nothing more)
+    if (fn && why != 4 && !leaving) {       // (4: a fault: nothing more)
+        leaving = true;
+        watchdog_enable(CVF_EXIT_MS, true); // its time: then a normal boot, into the menu
+        fn();
+    }
     cvl_t *b = CVL_BLOCK;
     if (cvl_ok(b)) cvl_return(b, note[0] ? note : NULL);
     watchdog_reboot(0, 0, 1);
@@ -318,6 +326,7 @@ static uint32_t t_menu;
 static bool titled;
 
 void cvf_task(uint32_t t) {
+    if (leaving) return;                    // (the exit function calls it)
     watch(sio_hw->gpio_in, t);
     if (to_menu && !t_menu) {
         t_menu = t | 1;

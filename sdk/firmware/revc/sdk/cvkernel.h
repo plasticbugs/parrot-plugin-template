@@ -51,6 +51,19 @@ void cvk_home(bool on);
 // the menu's bottom line when the plugin goes back (at most 32 characters; NULL: none)
 void cvk_note(const char *note);
 
+// fn runs once on the way back to the menu, after RESET, the controllers'
+// way back, the console going off, or a console that never parks: core 1
+// has stopped, the data outputs are off, and the console waits parked in
+// its RAM (or is off). For the last save, of what changed since the plugin
+// last saved. It has CVK_EXIT_MS: the watchdog is set to that before fn
+// runs, and reboots into the menu if fn hasn't returned, so the menu always
+// comes back (where it was, without the note, when fn runs out of time).
+// fn may call cvk_note() and use the card; cvk_task() and cvk_report() do
+// nothing then. It must not feed the watchdog. It doesn't run when the
+// power goes, so a plugin should save as it goes too (docs/features.md).
+#define CVK_EXIT_MS 3000
+void cvk_on_exit(void (*fn)(void));
+
 // the kernel's next report, one a frame of each kind: true and its kind
 // (REPORT_KIND_*, mailbox.h) and A0-A5, or false if there's none new
 bool cvk_report(uint32_t now_us, int *kind, uint8_t *bits);
