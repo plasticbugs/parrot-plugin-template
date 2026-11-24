@@ -255,11 +255,12 @@ fi
 if wanted usb; then
     run usb-host "$kit/test/usb" --ms 3000 --script "$(cat "$kit/test/usb/host.script")" --midi-log "$out/usb-host.midi"
     expect 'note "key 04 dn 41 m02"' 'note "mouse -300,5 w-2 b0"' 'note "pad2 HID PAD 00000020"' 'note "joy 11 key 5"'
-    midi_log "$out/usb-host.midi" '  2502 90 3C 64 (to the MIDI device)' '  2602 F8 (to the MIDI device)'
+    # (the script's USB and MIDI words land at their own millisecond, not on the next TV frame)
+    midi_log "$out/usb-host.midi" '  2500 90 3C 64 (to the MIDI device)' '  2600 F8 (to the MIDI device)'
     run usb-device "$kit/test/usb" --ms 2000 --script "$(cat "$kit/test/usb/device.script")" --midi-log "$out/usb-device.midi"
     expect 'note "usb ON A COMPUTER"' ' midi C0 05'
     grep -q 'to the MIDI device' "$o/log.txt" && fail "MIDI went to a MIDI device, not to the computer"
-    midi_log "$out/usb-device.midi" '   500 90 3C 64' '   533 80 3C 00' '   700 C0 05'
+    midi_log "$out/usb-device.midi" '   500 90 3C 64' '   520 80 3C 00' '   700 C0 05'
     # --usb: as the plugin asked (a computer listening: MIDI_OUT), a hub, a computer that asks
     run usb-flag-host "$kit/test/usb" --usb host --ms 2000
     expect '^  1501 usb: the port is a host'

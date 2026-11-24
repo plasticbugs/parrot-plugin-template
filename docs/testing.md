@@ -63,6 +63,12 @@ PC_OUT=/tmp PC_END=3000 PC_SCRIPT="500:joy=up 900:key=5" /tmp/myplugin
 open /tmp/screen.png; cat /tmp/log.txt
 ```
 
+Each event happens at its millisecond, on the plugin's next call to the
+SDK after it. The console reads its controllers once a TV frame, so a
+`joy=` or `key=` reaches the plugin at the next frame, as on the cart.
+USB and MIDI events (`keydown=`, `mouse=`, `midiin=` ...) arrive between
+frames, so a test can time MIDI to the millisecond.
+
 The card tests need macOS, for its `fsck` and for mounting the image
 afterwards, and the rest also run on Linux. `tools/mkcard.sh FOLDER
 IMAGE [fat16|fat32|exfat] [mbr|gpt]` makes a card image from a folder,

@@ -226,8 +226,12 @@ F1 shows which MIDI ports are open. With `--usb host`, what the plugin
 sends to the MIDI device on the hub goes to the same output.
 
 The plugin's MIDI goes out once a TV frame, so its timing can be up to
-1/60 of a second off. Input reaches the plugin once a frame too. As on
-the cart, SysEx doesn't reach the plugin.
+1/60 of a second off. Input from your computer's ports reaches the
+plugin once a frame too. A script's `midiin=` words and other USB words
+land at their own millisecond instead, and `--midi-log` gives each
+message's time on the same clock, so a headless test can check MIDI
+timing to the millisecond. As on the cart, SysEx doesn't reach the
+plugin.
 
 ## 5. The SD card
 
@@ -363,8 +367,8 @@ cart:
 - A desktop game pad acts as a perfect USB pad, and your computer's
   keyboard, mouse and MIDI ports act as perfect USB devices. The cart's
   USB code (TinyUSB) doesn't run, so hubs, how a device starts up, and
-  devices TinyUSB doesn't support aren't tested. Neither is MIDI timing,
-  which moves once a TV frame here.
+  devices TinyUSB doesn't support aren't tested. Neither is the timing
+  of MIDI from your computer's ports, which moves once a TV frame here.
 - The colors are exactly the video chip's, while a TV blurs them and
   makes them bleed. The sound comes from a model of the console's sound
   chip, which is close but not exact.

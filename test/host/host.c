@@ -46,6 +46,9 @@
 //                      ask: one is there and asking its user, and never takes the cart
 //   snap=NAME          PC_OUT/NAME.png now
 //   simkey=... simpad=... and the other sim* words: the simulator's own (sim/input.c)
+// Each word is done at its millisecond, on the plugin's next SDK call after
+// it. The console reads its controllers once a TV frame, so joy= and key=
+// reach the plugin at the next frame; USB and MIDI words land between frames.
 //
 // The plugin's USB features (cvusb.h) are the ones its CMakeLists.txt turns
 // on: build.sh reads cvcart_features() (with plugin.cmake, as the simulator
@@ -336,13 +339,17 @@ static void event(const char *what, const char *v) {
     else { fprintf(stderr, "PC_SCRIPT: what is \"%s=%s\"?\n", what, v); exit(2); }
 }
 
-static void script_step(void) {
+// the script's words due by then: console_step() runs them at each frame's
+// start, and between frames at each SDK call, so a USB or MIDI word lands
+// at its own millisecond (as near as the plugin's calls come), not on the
+// next frame. The console reads its controllers once a frame either way.
+static void script_step(uint64_t by) {
     while (script_at && *script_at) {
         char what[32], v[128] = "";
         unsigned ms;
         int used = 0;
         if (sscanf(script_at, " %u:%31[a-z0-9]=%n", &ms, what, &used) < 2 || !used) { fprintf(stderr, "PC_SCRIPT: can't read \"%s\"\n", script_at); exit(2); }
-        if ((uint64_t)ms * 1000 > now_us) return;
+        if ((uint64_t)ms * 1000 > by) return;
         script_at += used;
         int n = 0;
         while (script_at[n] && script_at[n] != ' ' && n < 127) n++;
@@ -1155,13 +1162,14 @@ static void home_step(void) {
 static void console_step(void) {
     timers_run();
     while (now_us >= next_frame) {
+        script_step(next_frame);        // (the words due by this frame, when the clock has jumped past several)
         next_frame += FRAME_US;
-        script_step();
         if (k_on) k_frame();
         if (f_on) f_frame();
         SIM_FRAME();
         home_step();
     }
+    script_step(now_us);
     if (now_us >= end_us) finish();
 }
 
