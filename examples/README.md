@@ -58,8 +58,9 @@ Each plugin uses one kernel or the other, never both.
 
 ## What isn't in the SDK
 
-- A way for a plugin to go back to the menu by itself. To go back, press
-  RESET on the console or switch it off. The frame kernel has
+- A call that sends a plugin back to the menu by itself. The player goes
+  back with RESET, or by holding both fire buttons and `*` (Select and
+  Start on a USB pad) for 2 seconds (`cvhome.h`). The frame kernel has
   `cvf_menu_now()` for a plugin that can't continue, but it isn't a
   clean exit, because the console is left running the plugin's kernel.
 - Sprites, scrolling or a text console. The screen kernel shows a bitmap,
