@@ -13,8 +13,11 @@ The published plugins are worked examples, each with its full source:
 | Donkey Kong, Time Pilot, Mr. Do! and the other arcade games | `parrot-plugin-dkong`, `parrot-plugin-timeplt`, `parrot-plugin-mrdo`, ... | their own boards, following MAME's drivers (BSD-3-Clause) | a portrait screen at 3/4 with the HUD in the margins, the sound CPU, tests against MAME (Time Pilot's and Mr. Do!'s `test/`) |
 | SCUMM | `parrot-plugin-scumm` | ScummVM's SCUMM engine (GPL) | a 900 KB plugin run from flash (`XIP`), a mouse pointer as a sprite, MIDI out to a computer |
 
-They are at `https://github.com/plasticbugs/<repository>`. Read the one
-closest to the job before designing anything.
+They are at `https://github.com/plasticbugs/<repository>`. The kit
+itself (its examples, `lib/`, `test/` and these references) is enough to
+port something. When you can reach GitHub, the plugin closest to the job
+is still worth reading before you design a port, for the choices it
+made.
 
 ## Plan around the budgets
 

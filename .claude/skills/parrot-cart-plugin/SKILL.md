@@ -269,6 +269,12 @@ won't forgive. Each one has a reason.
 In a copy of the kit, read the file. Elsewhere, fetch it from
 `https://raw.githubusercontent.com/plasticbugs/parrot-plugin-template/main/PATH`.
 
+The kit has everything a plugin needs: these docs, the examples, the
+small plugins the tests run (`test/`), `lib/` and the SDK's headers.
+Work from them. The published plugins at the end of the table are more
+worked examples, for a port like theirs. Nothing in the kit depends on
+them, so don't go looking for them when the kit already shows the way.
+
 | Need | File |
 |---|---|
 | tools, building, the first run on a cart | `docs/getting-started.md` |
@@ -281,9 +287,10 @@ In a copy of the kit, read the file. Elsewhere, fetch it from
 | the README the cart shows (30 columns) | `docs/readme-spec.md` |
 | icons, screenshots | `docs/icons.md`, `docs/screenshots.md` |
 | releasing and the plugins site | `docs/release-checklist.md` |
-| one small working plugin per topic | `examples/` (screen, sound, usb-gamepad, usb-keyboard-mouse, usb-midi-out, sd-card, open-file, frames, samples, two-controllers, psram) |
+| one small working plugin per topic | `examples/` (screen, sound, usb-gamepad, usb-keyboard-mouse, usb-midi-out, sd-card, open-file, frames, samples, two-controllers, psram). `new-plugin.py` leaves them out of a new plugin's folder unless given `--examples`; the kit has them |
+| a plugin for each test: every USB feature, the font and text editor, timers, the VDP, lists back to back | `test/usb`, `test/font`, `test/timers`, `test/vdp`, `test/b2b` |
 | the SDK's calls | `sdk/firmware/revc/sdk/README.md` and its headers |
-| full plugins with source (NES, Game Boy, Master System, PC Engine, Vectrex, SCUMM, Lua, Text Editor) | `https://github.com/plasticbugs/parrot-plugin-*` |
+| more worked examples, not needed to build a plugin: full plugins with source (NES, Game Boy, Master System, PC Engine, Vectrex, SCUMM, Lua, Text Editor) | `https://github.com/plasticbugs/parrot-plugin-*` |
 | arcade games with source (Donkey Kong, Pac-Man, Ms. Pac-Man, Q*bert, Time Pilot, Mr. Do!, Pole Position, Cloak & Dagger, Dragon's Lair, and the vector games Star Wars and The Empire Strikes Back, with speech) | `https://github.com/plasticbugs/parrot-plugin-dkong` and so on (`-pacman`, `-mspacman`, `-qbert`, `-timeplt`, `-mrdo`, `-polepos`, `-cloak`, `-dlair`, `-starwars`, `-esb`). Time Pilot's and Mr. Do!'s have their MAME tests |
 | porting an arcade game: keys, ROM sets, high scores, the picture (vectors, palettes per line, 40 Hz games), matching MAME and its pitfalls, sound boards, speed | `references/porting.md`, "Arcade games" |
 | samples through the DAC, lists back to back, MAME's costs for the kernel | `references/porting.md`, "Lists back to back"; `examples/samples` |
