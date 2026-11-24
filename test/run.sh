@@ -92,12 +92,16 @@ run_one() {
 wanted() { [ -z "$ONLY" ] && return 0; case " $ONLY " in *" $1 "*) return 0 ;; esac; return 1; }
 ONLY="$*"
 
+# The card helpers leave the caller's variables alone: each runs in a
+# subshell, ( ... ), so the names it uses are its own, and a check that
+# fails sets status=1 through its exit code.
+
 # a card image: FILESYSTEM:LAYOUT:NAME -> $out/card-NAME.cdr, from a small
 # tree, with more folders if asked (card SPEC /FOLDER ...). FILESYSTEM and
 # LAYOUT are hdiutil's names; tools/mkcard.sh makes it (a plugin's own
 # cards too: it gives the volume a name, which hdiutil needs when the
 # folder's name is longer than 11 characters)
-card() {
+card() (
     fsname=${1%%:*}; rest=${1#*:}; layout=${rest%%:*}; cname=${rest#*:}
     shift
     tree=$out/tree
@@ -110,7 +114,7 @@ card() {
     case $fsname in "MS-DOS FAT16") fs=fat16 ;; "MS-DOS FAT32") fs=fat32 ;; *) fs=exfat ;; esac
     case $layout in GPT*) lay=gpt ;; *) lay=mbr ;; esac
     "$kit/tools/mkcard.sh" "$tree" "$out/card-$cname.cdr" $fs $lay
-}
+)
 
 # hdiutil detach, again with -force if the disk is busy (Spotlight, or
 # another test's attach at the same moment)
@@ -118,25 +122,28 @@ detach() { hdiutil detach -quiet "$1" 2>/dev/null || { sleep 1; hdiutil detach -
 
 # macOS's opinion of an image the plugin wrote to: fsck (card_fsck NAME FS,
 # FS as hdiutil names it: "MS-DOS FAT32", ExFAT)
-card_fsck() {
+card_fsck() { fsck_card "$@" || status=1; }
+fsck_card() (
     cname=$1; fs=$2
     img=$out/card-$cname.cdr
     dev=$(hdiutil attach -nomount -readonly "$img" | awk '$1 ~ /s[0-9]+$/ {d = $1} END {print d}')
     whole=${dev%s*}
     fsck_ok=1
-    case $fs in ExFAT) fsck_exfat -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_exfat"; status=1; fsck_ok=0; } ;;
-                *) fsck_msdos -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_msdos"; status=1; fsck_ok=0; } ;; esac
+    case $fs in ExFAT) fsck_exfat -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_exfat"; fsck_ok=0; } ;;
+                *) fsck_msdos -n "$dev" >"$out/fsck-$cname.log" 2>&1 || { echo "  FAIL: fsck_msdos"; fsck_ok=0; } ;; esac
     detach "$whole"
     [ $fsck_ok = 1 ] && [ $# = 2 ] && echo "  macOS: fsck clean"
-    return 0
-}
+    [ $fsck_ok = 1 ]
+)
 
 # card_fsck, then the save file's bytes: 512 of them, starting with MAGIC,
 # a run count at byte 8 (card_check NAME FS RUNS [/PATH/OF.SAV MAGIC]:
 # /SDCARD.SAV and PCSAVE1)
-card_check() {
+card_check() { check_card "$@" || status=1; }
+check_card() (
     cname=$1; fs=$2; runs=$3; save=${4:-/SDCARD.SAV}; magic=${5:-PCSAVE1}
-    card_fsck "$cname" "$fs" quiet
+    ok=1
+    fsck_card "$cname" "$fs" quiet || ok=0
     img=$out/card-$cname.cdr
     mnt=$out/mnt-$cname
     mkdir -p "$mnt"
@@ -144,8 +151,9 @@ card_check() {
     got=$(python3 -I -c 'import struct,sys; d=open(sys.argv[1],"rb").read(); print(len(d), d[:len(sys.argv[2])].decode(), struct.unpack_from("<I", d, 8)[0])' "$mnt$save" "$magic" 2>&1) || true
     detach "$mnt"
     if [ "$got" = "512 $magic $runs" ]; then echo "  macOS: fsck clean, $save is 512 bytes, run $runs"
-    else echo "  FAIL: $save on the Mac: $got (wanted run $runs)"; status=1; fi
-}
+    else echo "  FAIL: $save on the Mac: $got (wanted run $runs)"; ok=0; fi
+    [ $ok = 1 ]
+)
 
 # test/b2b, made wrong on purpose: the model must fail it with PATTERN
 # (b2b_fails NAME LIST_T BLANK_WRITES PATTERN), and MAME see the gaps
@@ -200,8 +208,8 @@ fi
 if wanted sd-card; then
     PC_END=1500 run sd-card-nocard "$kit/examples/sd-card" 'back to the menu'
     for spec in "MS-DOS FAT16:MBRSPUD:fat16" "MS-DOS FAT32:GPTSPUD:fat32" "ExFAT:MBRSPUD:exfat"; do
-        card "$spec"
         cname=${spec##*:}
+        card "$spec"
         for n in 1 2 3; do
             PC_CARD=$out/card-$cname.cdr PC_END=2500 run "sd-card-$cname-$n" "$kit/examples/sd-card" "note \"SD card example: run $n\""
         done
@@ -211,8 +219,8 @@ fi
 if wanted open-file; then
     PC_END=1000 run open-file-none "$kit/examples/open-file" 'back to the menu'
     for spec in "MS-DOS FAT32:MBRSPUD:fat32" "ExFAT:GPTSPUD:exfat"; do
-        card "$spec"
         cname=${spec##*:}
+        card "$spec"
         PC_CARD=$out/card-$cname.cdr PC_OPEN="/A first file.txt" PC_END=2000 \
             run "open-file-$cname-short" "$kit/examples/open-file" 'note "Read A first file.txt"'
         PC_CARD=$out/card-$cname.cdr PC_OPEN="/NOTES/Long story.txt" PC_END=3000 PC_SCRIPT="1500:joy=down 1600:joy= 1700:joy=down+fire 1800:joy=" \
