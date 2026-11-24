@@ -301,6 +301,14 @@ fi
 if wanted font; then
     PC_END=1500 PC_SCRIPT="$(cat "$kit/test/font/test.script")" run font "$kit/test/font" 'note "font: Hi\|there"'
 fi
+# the pico-sdk's alarms and repeating timers on the models' clock
+# (test/host/include/pico/time.h; test/timers/main.c says what its note holds)
+if wanted timers; then
+    PC_END=1000 run timers "$kit/test/timers" 'note "timers 4[89][0-9] 9[0-9] 1 0 50"'
+    at=$(awk '$2 == "note" && $6 == 1 {print $1; exit}' "$out/timers/log.txt")
+    if [ -n "$at" ] && [ "$at" -ge 500 ] && [ "$at" -le 520 ]; then echo "  the 500 ms alarm: seen at $at ms"
+    else echo "  FAIL: the 500 ms alarm was first seen at ${at:-no time}"; status=1; fi
+fi
 
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
 exit $status

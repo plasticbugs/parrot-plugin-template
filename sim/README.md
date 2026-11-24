@@ -49,7 +49,9 @@ cart. `host.c`'s clock moves forward with each call the plugin makes
 renders its sound, reads the input, and then waits until it's time for
 that frame on the desktop. It goes by the audio device's queue when
 there's sound, and by the wall clock when there isn't. In headless mode,
-it doesn't wait at all.
+it doesn't wait at all. The pico-sdk's alarms and repeating timers run on
+the same clock: a callback runs when the plugin next calls the SDK or
+sleeps, once its time has come.
 
 This way the plugin sees 59.94 frames a second whatever the computer's
 speed, and the sound stays in step with the picture. The catch is that a

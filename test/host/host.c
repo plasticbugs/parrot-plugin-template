@@ -14,6 +14,10 @@
 //   the launch     PC_OPEN=/PATH/ON/THE/CARD: a launch block, as the menu makes it
 //   the inputs     PC_SCRIPT, below
 //
+// The clock moves on 100 us with each time_us_32() call and by what a sleep
+// or the card takes; the pico-sdk's alarms and repeating timers run on it
+// (include/pico/time.h).
+//
 // It ends at PC_END milliseconds, as if RESET had been pressed, or when the
 // script holds both fire buttons and * (joy=fire+fire2 key=*), or a USB
 // pad's Select and Start (pad=minus+plus), for 2 seconds (cvhome.h): the screen
@@ -141,8 +145,115 @@ static void fail(const char *fmt, ...) {
 }
 
 uint32_t time_us_32(void) { now_us += 100; return (uint32_t)now_us; }
-void sleep_ms(uint32_t ms) { now_us += (uint64_t)ms * 1000; }
-void sleep_us(uint64_t us) { now_us += us; }
+uint64_t time_us_64(void) { now_us += 100; return now_us; }
+static void clock_to(uint64_t t);
+void sleep_ms(uint32_t ms) { clock_to(now_us + (uint64_t)ms * 1000); }
+void sleep_us(uint64_t us) { clock_to(now_us + us); }
+void busy_wait_us(uint64_t us) { clock_to(now_us + us); }
+
+// ---- the pico-sdk's alarms and repeating timers (pico/time.h) ----------------------
+// Each callback runs once its time has come, from console_step() (the SDK's
+// task and console calls) or a sleep, earliest first. A callback that calls
+// the SDK itself doesn't start the next one inside it.
+#define TIMERS 16                       // the pico-sdk's default alarm pool has 16
+static struct {
+    alarm_id_t id;                      // 0: free
+    uint64_t at;                        // when it is due
+    alarm_callback_t alarm;             // an alarm's callback, or
+    repeating_timer_t *rt;              // a repeating timer
+    void *user;
+} timers[TIMERS];
+static alarm_id_t timer_last_id;
+static bool timers_running;
+
+static alarm_id_t timer_add(uint64_t at, alarm_callback_t alarm, repeating_timer_t *rt, void *user) {
+    for (int i = 0; i < TIMERS; i++) {
+        if (timers[i].id) continue;
+        timer_last_id = timer_last_id == INT32_MAX ? 1 : timer_last_id + 1;
+        timers[i].id = timer_last_id;
+        timers[i].at = at;
+        timers[i].alarm = alarm;
+        timers[i].rt = rt;
+        timers[i].user = user;
+        return timer_last_id;
+    }
+    return -1;
+}
+
+static bool timer_cancel(alarm_id_t id) {
+    for (int i = 0; i < TIMERS; i++)
+        if (id > 0 && timers[i].id == id) {
+            timers[i].id = 0;
+            return true;
+        }
+    return false;
+}
+
+static int timer_due(uint64_t by) {     // the earliest timer due by then, or -1
+    int k = -1;
+    for (int i = 0; i < TIMERS; i++)
+        if (timers[i].id && timers[i].at <= by && (k < 0 || timers[i].at < timers[k].at)) k = i;
+    return k;
+}
+
+static void timers_run(void) {
+    if (timers_running) return;
+    timers_running = true;
+    for (int n = 0, k; n < 100000 && (k = timer_due(now_us)) >= 0; n++) {
+        const alarm_id_t id = timers[k].id;
+        const uint64_t due = timers[k].at;
+        if (timers[k].rt) {
+            repeating_timer_t *rt = timers[k].rt;
+            const bool again = rt->callback(rt);
+            if (timers[k].id != id) continue;   // cancelled in its callback
+            if (!again) timers[k].id = 0;
+            else timers[k].at = rt->delay_us < 0 ? due + (uint64_t)-rt->delay_us : now_us + (uint64_t)rt->delay_us;
+        } else {
+            const int64_t r = timers[k].alarm(id, timers[k].user);
+            if (timers[k].id != id) continue;
+            if (!r) timers[k].id = 0;
+            else timers[k].at = r < 0 ? due + (uint64_t)-r : now_us + (uint64_t)r;
+        }
+    }
+    timers_running = false;
+}
+
+// the clock on to t, and each timer due on the way at its own time
+static void clock_to(uint64_t t) {
+    int k;
+    while (!timers_running && (k = timer_due(t)) >= 0) {
+        if (timers[k].at > now_us) now_us = timers[k].at;
+        timers_run();
+    }
+    if (t > now_us) now_us = t;
+}
+
+alarm_id_t add_alarm_at(absolute_time_t t, alarm_callback_t callback, void *user_data, bool fire_if_past) {
+    if (t <= now_us && !fire_if_past) return 0;
+    return timer_add(t, callback, NULL, user_data);
+}
+alarm_id_t add_alarm_in_us(uint64_t us, alarm_callback_t callback, void *user_data, bool fire_if_past) {
+    return add_alarm_at(now_us + us, callback, user_data, fire_if_past);
+}
+alarm_id_t add_alarm_in_ms(uint32_t ms, alarm_callback_t callback, void *user_data, bool fire_if_past) {
+    return add_alarm_at(now_us + (uint64_t)ms * 1000, callback, user_data, fire_if_past);
+}
+bool cancel_alarm(alarm_id_t id) { return timer_cancel(id); }
+
+bool add_repeating_timer_us(int64_t delay_us, repeating_timer_callback_t callback, void *user_data, repeating_timer_t *out) {
+    if (!delay_us) delay_us = 1;
+    out->delay_us = delay_us;
+    out->pool = NULL;
+    out->callback = callback;
+    out->user_data = user_data;
+    out->alarm_id = timer_add(now_us + (uint64_t)(delay_us < 0 ? -delay_us : delay_us), NULL, out, user_data);
+    return out->alarm_id > 0;
+}
+bool cancel_repeating_timer(repeating_timer_t *timer) {
+    const bool was = timer_cancel(timer->alarm_id);
+    timer->alarm_id = 0;
+    return was;
+}
 
 // ---- the inputs ------------------------------------------------------------------
 static uint8_t joy_held;        // wired.h's WIRED_* order: up right down left fire fire2
@@ -323,6 +434,7 @@ void cvk_start(const cvk_config_t *c) {
     (void)c;
     k_on = true;
     t_task = now_us;
+
     vdp_t v;
     vdp_init(&v);
     memcpy(k_vram, v.vram, VRAM_SIZE);
@@ -1016,6 +1128,7 @@ static void home_step(void) {
 }
 
 static void console_step(void) {
+    timers_run();
     while (now_us >= next_frame) {
         next_frame += FRAME_US;
         script_step();

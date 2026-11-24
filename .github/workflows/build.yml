@@ -37,7 +37,7 @@ jobs:
       - name: Run them on the console's model
         run: |
           # (the card examples need macOS's hdiutil, and MAME a BIOS: not here)
-          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram usb font
+          NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram usb font timers
 
       - name: lib/'s smoke tests (the MAME cores and helpers)
         run: lib/test.sh
@@ -83,7 +83,7 @@ jobs:
 
       - name: The models alone, for the simulator's pictures to match
         if: runner.os != 'Windows'
-        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram vdp usb font
+        run: NO_MAME=1 test/run.sh hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out frames samples back-to-back two-controllers psram vdp usb font timers
 
       - name: The simulator, headless
         run: |

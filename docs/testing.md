@@ -20,6 +20,15 @@ it against models of everything on the cart (`test/host/host.c`):
 | USB | a pad, keyboard, mouse or listening computer, from the script | how the plugin handles them (USB itself isn't tested) |
 | the PSRAM | 8 MB of ordinary memory | the plugin's arithmetic |
 
+The models keep their own clock. It moves on 100 microseconds with each
+`time_us_32()` call, and by the time a sleep or the card takes. The
+pico-sdk's alarms and repeating timers (`add_repeating_timer_ms()`,
+`add_alarm_in_ms()` and the rest of `pico/time.h`) run on that clock. A
+callback runs once its time has come, when the plugin next calls the
+task function or another of the SDK's console calls, or sleeps. On the
+cart it's an interrupt that can come between any two instructions, so
+the models show a timer's timing but not its races with the loop.
+
 Then the test plays the plugin's lists to the SDK's real Z80 kernel on
 MAME's ColecoVision (`tools/mame-replay.sh`, headless). MAME's picture
 has to match the model's pixel for pixel, and for the frame kernel, no
