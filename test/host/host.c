@@ -769,6 +769,12 @@ void cvk_on_exit(void (*fn)(void)) { k_exit = fn; }
 // clock. If the time runs out first, the cart reboots into the menu where it
 // was, without the note, and so does this, with a FAIL. True if it returned.
 static jmp_buf exit_jmp;
+static struct {                         // (static, so nothing of it is lost across the longjmp)
+    void (*fn)(void);
+    const char *name;
+    unsigned ms;
+    uint64_t t0;
+} exit_now;
 static uint64_t exit_end;
 static void exit_watchdog(void) {
     if (leaving && exit_end && now_us > exit_end) longjmp(exit_jmp, 1);
@@ -776,18 +782,21 @@ static void exit_watchdog(void) {
 static bool exit_run(void (*fn)(void), unsigned ms, const char *name) {
     if (!fn) return true;
     leaving = true;
-    const uint64_t t0 = now_us;
+    exit_now.fn = fn;
+    exit_now.name = name;
+    exit_now.ms = ms;
+    exit_now.t0 = now_us;
+    exit_end = now_us + (uint64_t)ms * 1000;
     if (setjmp(exit_jmp)) {
         exit_end = 0;
         fail("%s's function didn't return in its %u ms: on the cart the watchdog reboots into the menu then, "
              "without the note, and what it hadn't written is lost. Save as you go, and leave only the last "
-             "changes for it", name, ms);
+             "changes for it", exit_now.name, exit_now.ms);
         return false;
     }
-    exit_end = t0 + (uint64_t)ms * 1000;
-    fn();
+    exit_now.fn();
     exit_end = 0;
-    logline("%s's function: %u ms of its %u", name, (unsigned)((now_us - t0) / 1000), ms);
+    logline("%s's function: %u ms of its %u", exit_now.name, (unsigned)((now_us - exit_now.t0) / 1000), exit_now.ms);
     return true;
 }
 uint32_t cvf_frames(void) { polled("cvf_task()"); console_step(); return f_frames; }
