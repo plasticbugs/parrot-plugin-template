@@ -152,7 +152,9 @@ The window's title always shows the keyboard's role. When the simulator
 starts, and after you press F2, a label in the bottom left corner of the
 window shows it for three seconds too.
 
-F5 works like the console's RESET. The plugin's session ends, the
+F5 works like the console's RESET. Holding both fire buttons and `*`, or
+a pad's Select and Start, for 2 seconds does the same, as on the console.
+The plugin's session ends, the
 simulator saves the plugin's changes to the card, and the window shows
 the note your plugin left for the menu (`cvk_note()`). Press F5 or a
 fire button there to start the plugin again from the beginning, as a

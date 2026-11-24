@@ -14,7 +14,9 @@
 //   the launch     PC_OPEN=/PATH/ON/THE/CARD: a launch block, as the menu makes it
 //   the inputs     PC_SCRIPT, below
 //
-// It ends at PC_END milliseconds, as if RESET had been pressed: the screen
+// It ends at PC_END milliseconds, as if RESET had been pressed, or when the
+// script holds both fire buttons and * (joy=fire+fire2 key=*), or a USB
+// pad's Select and Start (pad=minus+plus), for 2 seconds (cvhome.h): the screen
 // is written to PC_OUT/screen.png (256x192, the size a registry screenshot
 // must be), what happened to PC_OUT/log.txt, and every list the plugin sent
 // to PC_OUT/lists.bin, which tools/mame-replay.sh plays to the real kernel
@@ -74,6 +76,7 @@
 #include "pico/stdlib.h"
 
 #include "cvframes.h"
+#include "cvhome.h"
 #include "cvkernel.h"
 #include "cvpad.h"
 #include "cvpsram.h"
@@ -107,6 +110,8 @@ static const char *out_dir = ".";
 static FILE *log_file, *listf;
 static int fails;
 static uint64_t t_task;        // the last cvk_task()/cvf_task(): see polled()
+static bool home_off;           // cvk_home(false) / cvf_home(false)
+static const char *end_why;     // the controllers' way back to the menu, if that ended it
 static bool task_failed;
 static void console_step(void);
 
@@ -341,6 +346,7 @@ static void polled(const char *task) {
 }
 
 void cvk_task(uint32_t t) { (void)t; t_task = now_us; console_step(); }
+void cvk_home(bool on) { home_off = !on; logline("cvk_home(%s)", on ? "true" : "false"); }
 void cvk_note(const char *s) { memset(note, 0, sizeof note); if (s) strncpy(note, s, 32); logline("note \"%s\"", note); }
 bool cvk_console_on(void) { return true; }
 
@@ -604,6 +610,7 @@ void cvf_start(const cvf_config_t *c) {
     if (getenv("PC_BACK_TO_BACK") && strcmp(getenv("PC_BACK_TO_BACK"), "0")) f_b2b = true;
 }
 void cvf_task(uint32_t t) { (void)t; t_task = now_us; console_step(); }
+void cvf_home(bool on) { cvk_home(on); }
 void cvf_note(const char *s) { cvk_note(s); }
 void cvf_note_now(void) {}
 void cvf_on_exit(void (*fn)(void)) { f_exit = fn; }
@@ -909,6 +916,11 @@ void cvusb_status(cvusb_status_t *s) {
 
 uint32_t cvusb_task_max_us(void) { return 50; }
 bool cvusb_pad(int n, gamepad_t *p) { return usb_mode == CVUSB_HOST && CVUSB_PADS && cvpad_get(n, p); }
+bool cvpad_held(uint32_t buttons) {
+    for (int n = 0; n < CVUSB_PAD_MAX; n++)
+        if (pad_in[n] && (pad_state[n].buttons & buttons) == buttons) return true;
+    return false;
+}
 const char *cvusb_pad_kind(int n) { return usb_mode == CVUSB_HOST && CVUSB_PADS ? cvpad_kind(n) : NULL; }
 uint32_t cvusb_pad_dirs(const gamepad_t *p) { return cvpad_dirs(p); }
 
@@ -968,11 +980,12 @@ static void finish(void) {
     static bool done;
     if (done) return;
     done = true;
+    if (end_why) logline("%s held for 2 s", end_why);
     if (k_on) k_frame();                // a list still out runs
     if (f_on) f_frame();
     if (f_b2b_lists)
         logline("%u lists back to back, %u to %u T each by MAME's costs, %u run again", f_b2b_lists, f_b2b_min, f_b2b_max, f_reruns);
-    logline("RESET: back to the menu, its bottom line \"%s\"", note);
+    logline("%s: back to the menu, its bottom line \"%s\"", end_why ? "the controllers" : "RESET", note);
     if (f_exit) f_exit();
     if (k_on && cvs_seen && memcmp(k_vram, cvs_seen->vdp.vram, VRAM_SIZE)) fail("the console's VRAM isn't what the SDK thinks it is");
     snapshot("screen");
@@ -989,6 +1002,19 @@ static void finish(void) {
     exit(fails ? 1 : 0);
 }
 
+// back to the menu from the controllers, as cvk_task() and cvf_task() look for it
+static void home_step(void) {
+    static cvhome_t home;
+    if (home_off || !(k_on || f_on)) return;
+    const bool console = cvhome_console(joy_held & 16, joy_held & 32, key_held == 10 ? 9 : 15);
+    bool pad = false;
+    for (int n = 0; n < CVUSB_PAD_MAX; n++)
+        if (pad_in[n] && (pad_state[n].buttons & CVHOME_PAD) == CVHOME_PAD) pad = true;
+    if (!cvhome_step(&home, (uint32_t)now_us, console || pad)) return;
+    end_why = console ? "both fire buttons and *" : "a USB pad's Select and Start";
+    finish();
+}
+
 static void console_step(void) {
     while (now_us >= next_frame) {
         next_frame += FRAME_US;
@@ -996,6 +1022,7 @@ static void console_step(void) {
         if (k_on) k_frame();
         if (f_on) f_frame();
         SIM_FRAME();
+        home_step();
     }
     if (now_us >= end_us) finish();
 }

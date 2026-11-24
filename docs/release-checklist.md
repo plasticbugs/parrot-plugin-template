@@ -34,7 +34,9 @@ plugins site, and we never build anything from them.
       use it.
 - [ ] It has run on a real console from the card. Start it from Apps
       on Home if it starts on its own, and by opening a file if it opens
-      any. Press RESET to go back to the menu and check its note. Switch
+      any. Press RESET to go back to the menu and check its note. Start
+      it again and hold both fire buttons and `*` for 2 seconds: the
+      menu again. Switch
       the console off while it runs, and on again. `docs/testing.md` has
       the full list.
 - [ ] The release notes are in `RELEASE_NOTES.md`. They're optional. The

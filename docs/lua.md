@@ -64,6 +64,7 @@ While a script runs:
 | Esc | stops the script and goes back to the editor |
 | keypad `*`, held for two seconds | the same, without a keyboard |
 | RESET | goes back to the cart's menu |
+| both fire buttons and `*`, held for two seconds | the same, and so do Select and Start on a USB pad |
 
 When a script has a mistake, Lua stops it and goes back to the editor. The
 cursor is on the line, and the message is at the top and bottom of the

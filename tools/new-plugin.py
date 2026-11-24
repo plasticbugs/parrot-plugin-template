@@ -1182,7 +1182,7 @@ def readme(p):
         controls.append("A USB mouse: its position, buttons and wheel show on the TV")
     if p.has("midi-out"):
         controls.append("Keypad 1-8: send MIDI notes, C to C")
-    controls.append("RESET: back to the cart's menu")
+    controls.append("RESET, or both fire buttons and \\* held for 2 seconds (Select and Start on a USB pad): back to the cart's menu")
     needs = []
     if p.has(*HOST_FEATURES):
         things = english([t for k, t in [("pads", "game pads"), ("keyboard", "a keyboard"), ("mouse", "a mouse"),

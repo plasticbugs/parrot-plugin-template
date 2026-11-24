@@ -267,7 +267,7 @@ them all:
 | coin | keypad * or # | - (minus; Share on a PS4 pad) |
 | one-player start | keypad 1 | + (plus; Options on a PS4 pad) |
 | two-player start | keypad 2 | |
-| back to the menu | RESET | |
+| back to the menu | RESET, or both fire buttons and * held 2 s (the SDK does it) | Select and Start held 2 s (the SDK does it) |
 
 If the game also starts on a fire button, keep that. A one-player game
 leaves keypad 2 unused. A game with two fire buttons can give each one

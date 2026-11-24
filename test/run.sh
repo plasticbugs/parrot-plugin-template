@@ -223,6 +223,19 @@ if wanted frames; then
     PC_END=5000 PC_SCRIPT="1000:snap=early 2000:joy=left 2100:joy= 3000:joy=up 3100:joy=" \
         run frames "$kit/examples/frames" 'psg 8E 0F 92 A0 00 BF C0 00 DF FF' 'psg 8E 0F 9F A0 00 BF C0 00 DF FF'
 fi
+# back to the menu from the controllers (cvhome.h): both fire buttons and *
+# held 2 s with either kernel, and a USB pad's Select and Start; held 1.5 s
+# and let go, it doesn't
+if wanted home; then
+    PC_END=6000 PC_SCRIPT="1000:joy=fire+fire2 1000:key=*" \
+        run home-screen "$kit/examples/screen" 'both fire buttons and \* held for 2 s' 'the controllers: back to the menu'
+    PC_END=6000 PC_SCRIPT="1000:joy=fire+fire2 1000:key=*" \
+        run home-frames "$kit/examples/frames" 'both fire buttons and \* held for 2 s' 'the controllers: back to the menu'
+    PC_END=6000 PC_SCRIPT="500:pad=minus+plus" \
+        run home-pad "$kit/examples/usb-gamepad" "a USB pad's Select and Start held for 2 s" 'the controllers: back to the menu'
+    PC_END=5000 PC_SCRIPT="1000:joy=fire+fire2 1000:key=* 2500:key= 3000:key=* 4500:key=" \
+        run home-short "$kit/examples/frames" '^ *5000 RESET: back to the menu'
+fi
 # controller 2 (CONTROLLER2, cvf_input2()) and USB pad 1's two sticks; then in
 # MAME, every switch of both controllers through the frame kernel's reports,
 # with CONTROLLER2 and without it (tools/mame-controllers.sh)

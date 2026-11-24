@@ -217,6 +217,7 @@ first:
 | B | Press A on it, then `*` | Its details (version, developer `Parrot Cart` or yours, ID, what it uses), then its README, 30 columns wide, with pages turning |
 | C | Press B, then A | The copy into flash counting up the first time, then the plugin's screen within a second or two |
 | D | Press RESET | The menu, back in the Plugin Manager, with the plugin's note on the bottom line |
+| D2 | Start it again. Hold both fire buttons and `*` for 2 seconds, then do it again with Select and Start on a USB pad | The menu each time, as after RESET. Held for only a second, nothing happens |
 | E | Start it again. Switch the console off, wait 5 seconds, and switch it on | The menu, as after a cold start |
 
 Then check each plugin:

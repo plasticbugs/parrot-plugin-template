@@ -16,7 +16,7 @@ the details. Paths are from the kit's top folder. `SDK` is
 - The SD card (`cvsd_`, `fs_`)
 - Zip files (`swzip_`)
 - PSRAM and the heap
-- The launch block and notes
+- The launch block, notes and the way back to the menu
 
 ## CMake
 
@@ -223,10 +223,17 @@ Match entries by `e.crc` against the CRCs in MAME's driver for the game.
 - `SDK/cvheap.h`: with `HEAP`, call `cvheap_reserve()` before the first
   `malloc`. `cvheap_free()` and `cvheap_largest()` measure it.
 
-## The launch block and notes
+## The launch block, notes and the way back to the menu
 
 - `cvk_launch()` / `cvf_launch()` return the launch block (`SDK/cvlaunch.h`)
   or NULL: `path` is the file the menu opened the plugin with ("" for
   none). Open it with `cvsd_open_launched()`, not by `path`.
 - `cvk_note(text)` / `cvf_note(text)`: up to 32 characters, shown on the
   menu's bottom line after RESET.
+- Back to the menu from the controllers (`SDK/cvhome.h`): the task
+  function goes back when both fire buttons and `*`, or a USB pad's Select
+  and Start, are held for 2 seconds. The plugin sees the buttons as usual
+  until then. `cvk_home(false)` / `cvf_home(false)` turns it off for a
+  game that needs them held together; `true` turns it on again.
+  `cvpad_held(GP_...)` says whether a pad holds buttons now without taking
+  the presses `cvpad_get()` latches.

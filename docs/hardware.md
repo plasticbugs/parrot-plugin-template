@@ -29,7 +29,8 @@ clock as it is. A 200 MHz build crashed the console.
 Your plugin runs on core 0. Call the SDK's task function (`cvk_task()`
 or `cvf_task()`) regularly in your main loop. It checks whether the
 console is still on, and it takes you back to the menu when you press
-RESET.
+RESET, or when both fire buttons and `*` (Select and Start on a USB pad)
+are held for 2 seconds.
 
 ## Memory
 
@@ -105,8 +106,9 @@ While it runs, your plugin can use all of SRAM below `0x2007EC00`, the
 PSRAM, the USB port and the console. Please keep its flash writes to the
 plugin's log area, so the menu and the other plugins stay safe. On the
 card, write only to files your plugin made and to the file it opened
-(`docs/plugin-rules.md`). Pressing RESET or
-turning the console off takes you back to the menu, and so does a reboot.
+(`docs/plugin-rules.md`). Pressing RESET, holding both fire buttons and
+`*` for 2 seconds or turning the console off takes you back to the menu,
+and so does a reboot.
 
 ## What the cart doesn't have
 

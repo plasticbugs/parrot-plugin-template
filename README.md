@@ -11,7 +11,8 @@ change a few names to start your own plugin.
 
 - Stick, fire buttons and keypad: shown on the TV and counted as you
   press them
-- RESET: back to the cart's menu, which shows the count
+- RESET, or both fire buttons and \* held for 2 seconds: back to the cart's
+  menu, which shows the count
 
 ## Credits
 

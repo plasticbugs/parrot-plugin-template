@@ -171,7 +171,9 @@ won't forgive. Each one has a reason.
 - **Call the task function on every pass of every loop**, `cvk_task()`
   or `cvf_task()`, and keep each pass short. It turns the cart's data bus
   on once it sees the console, watches power and RESET, and takes the cart
-  back to the menu. A loop without it (a title screen waiting for fire,
+  back to the menu. It also goes back when both fire buttons and `*` (a
+  USB pad's Select and Start) are held for 2 seconds, so a plugin needs
+  no exit of its own. A loop without it (a title screen waiting for fire,
   `sleep_ms`, waiting on a flag) shows black or garbage on a real console
   and RESET does nothing. The simulator fails a plugin that polls the
   console for 100 ms without it. One long step at the start, like

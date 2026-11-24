@@ -81,7 +81,9 @@ ninja -C build-examples
    Pick your plugin and press A to start it. The first time, the cart
    copies the plugin into its flash and shows how far it has got, in
    percent, on the bottom line. After that, it starts right away.
-3. Press RESET on the console to go back to the menu.
+3. Press RESET on the console to go back to the menu. Holding both fire
+   buttons and `*` on controller 1 for 2 seconds does the same, and so do
+   Select and Start on a USB pad.
 
 The **Plugin Manager** on Home lists everything in `/PLUGINS` with its
 icon, name and version. Press A on a plugin there to see its details:

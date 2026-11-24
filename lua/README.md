@@ -17,7 +17,7 @@ In the editor, on a USB keyboard or the controller's keypad:
 While a script runs:
 
 - Esc, or the keypad's \* held for two seconds: stop it and go back to the editor
-- RESET: back to the cart's menu, as always
+- RESET, or both fire buttons and \* held for 2 seconds (Select and Start on a USB pad): back to the cart's menu
 
 If a script has a mistake, Lua stops it, puts the cursor on the line and shows what went wrong.
 
