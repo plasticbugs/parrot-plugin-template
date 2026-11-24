@@ -5,7 +5,13 @@
 --
 --   the screen kernel ('K' records)  a VDP write list at $A000 and the
 --     mailbox at $FF00; the next list once the kernel reports the last one
---     run (ACK, or HELLO before its first: a read of $FF80 / $FFA0 | seq)
+--     run (ACK, or HELLO before its first: a read of $FF80 / $FFA0 | seq).
+--     With PC_SOUND (the sound.bin beside lists.bin, which
+--     tools/mame-replay.sh passes when it records a WAV), the mailbox's sound
+--     too: each record's bytes at its time, by MAME's clock from the
+--     kernel's first look at the mailbox, so the kernel sends the sound
+--     chip what the cart would, when it would, for MAME's -wavwrite. The
+--     run then lasts as long as the sound
 --   the frame kernel ('F' records)   a list at $C000, a new one for each
 --     read of $FFF0 | seq (one a TV frame); the controllers' reports
 --     ($FFC0-$FFEF, and controller 2's at $FF80-$FFAF with CONTROLLER2)
@@ -108,6 +114,41 @@ else
   for i = 0, 0x7F do mb[i] = 0 end
   local silence = { 0x80, 0x00, 0x9F, 0xA0, 0x00, 0xBF, 0xC0, 0x00, 0xDF, 0xFF }
   for i = 1, 10 do mb[i] = silence[i] end
+  -- the sound (sound.bin, test/host/host.c): "PCSOUND1", then a record each
+  -- time the plugin published a change: 4 bytes of microseconds from its
+  -- cvk_start() (little end first), and the mailbox's $FF00-$FF0C as
+  -- published (SND_SEQ, the 10 SND bytes, NSEQ, NCTL)
+  local snd, snd_at, snd_t0, snd_done = {}, 1, nil, true
+  local snd_path = os.getenv("PC_SOUND")
+  if snd_path and snd_path ~= "" then
+    local sf = assert(io.open(snd_path, "rb"))
+    local sd = sf:read("a")
+    sf:close()
+    assert(sd:sub(1, 8) == "PCSOUND1", "PC_SOUND: not a sound.bin")
+    local q = 9
+    while q + 16 <= #sd do
+      snd[#snd + 1] = { t = string.unpack("<I4", sd, q), bytes = sd:sub(q + 4, q + 16) }
+      q = q + 17
+    end
+    snd_done = #snd == 0
+    print(string.format("replay: %d sound changes, %.1f s", #snd, #snd > 0 and snd[#snd].t / 1e6 or 0))
+  end
+  local lists_done = false
+  local function sound_step()
+    local now = manager.machine.time:as_double()
+    if not snd_t0 then snd_t0 = now end
+    local us = (now - snd_t0) * 1e6
+    while snd_at <= #snd and snd[snd_at].t <= us do
+      local b = snd[snd_at].bytes
+      for i = 0, 12 do mb[i] = b:byte(i + 1) end
+      snd_at = snd_at + 1
+    end
+    if snd_at > #snd and not snd_done then
+      snd_done = true
+      print(string.format("replay: %d sound changes played", #snd))
+      if lists_done then finish() end
+    end
+  end
   replay_tap = prog:install_read_tap(0xA000, 0xFFFF, "cart", function(offset, d, mask)
     if offset >= 0xFF80 then
       local kind, seq = (offset >> 5) & 3, offset & 31
@@ -117,13 +158,17 @@ else
           cur = lists[at]
           mb[0x11] = cur.full   -- LIST_FULL, then LIST_SEQ
           mb[0x10] = cur.seq
-        else
+        elseif not lists_done then
           linger = (linger or 2 * LINGER) - 1   -- (each report is read twice)
-          if linger == 0 then finish() end
+          if linger == 0 then
+            lists_done = true
+            if snd_done then finish() end
+          end
         end
       end
       return 0xFF
     elseif offset >= 0xFF00 then
+      if offset == 0xFF00 and #snd > 0 then sound_step() end   -- (the kernel reads SND_SEQ all the time)
       return mb[offset - 0xFF00]
     end
     return cur and cur.bytes:byte(offset - 0xA000 + 1) or 0xFF

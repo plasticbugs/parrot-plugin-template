@@ -11,6 +11,10 @@
 #
 # MAME_WAV=FILE.wav records the sound as well (MAME's -wavwrite, which works
 # with -sound none), for tools/wavlevel.py to measure against a cartridge's.
+# A frame plugin's sound is in its lists. A screen plugin's is in sound.bin,
+# which test/host/host.c writes beside lists.bin. With MAME_WAV, MAME plays
+# that to the kernel too, at its times, and runs until it ends (so give
+# SECONDS enough for the whole run). tools/loudness.sh does all of this.
 #
 # MAME runs headless, always: no window, no sound, as fast as it goes, and a
 # time limit so it can't hang. Never run it another way from this kit.
@@ -33,10 +37,12 @@ if [ "$(head -c 1 "$lists")" = F ]; then
 else
     (cd "$out/mame" && sjasmplus --nologo "$sdk/firmware/revc/midihello/midihello.asm" >/dev/null 2>&1)
     cart=$out/mame/mhkernel.bin
+    # the screen kernel's sound: the mailbox's changes, beside the lists
+    [ -n "$MAME_WAV" ] && [ -f "$(dirname "$lists")/sound.bin" ] && sound=$(dirname "$lists")/sound.bin
 fi
 rm -f "$out/mame/snap.png"
 # (if MAME stops, as it does without the BIOS, the check after it says why)
-PC_LISTS=$lists SDL_VIDEODRIVER=dummy mame coleco ${MAME_ROMPATH:+-rompath "$MAME_ROMPATH"} -cart "$cart" \
+PC_LISTS=$lists PC_SOUND=${sound:-} SDL_VIDEODRIVER=dummy mame coleco ${MAME_ROMPATH:+-rompath "$MAME_ROMPATH"} -cart "$cart" \
     -video none -videodriver dummy -window -nomaximize -sound none \
     -nothrottle -frameskip 0 -skip_gameinfo -seconds_to_run "${3:-60}" \
     -snapshot_directory "$out/mame" -snapname snap \

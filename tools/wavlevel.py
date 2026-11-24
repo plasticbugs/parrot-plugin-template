@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wavlevel.py [--span REF.wav] [--plain] FILE.wav ... -- how loud a
+"""wavlevel.py [--span REF.wav] [--plain] [--check] FILE.wav ... -- how loud a
 recording is, to compare a plugin's sound with an ordinary ColecoVision
 cartridge's or with the arcade's (docs/testing.md, "How loud").
 
@@ -25,6 +25,10 @@ below -60 dBFS is silent.
 --plain         the old measure: the whole band, each second's mean taken
                 out, no window (numbers from before this one, such as the
                 cartridges in docs/testing.md, were measured this way).
+--check         also say OK or FAIL for each file against the cartridges
+                in docs/testing.md (-20.5 to -23.9 dBFS rms, about -22):
+                louder than -20.5 fails, and so does quieter than -26 or a
+                peak at full scale (clipping). Exits 1 on a FAIL.
 
 Record the sounds the same way, so the numbers compare: a cartridge or
 the arcade with MAME's -wavwrite, and the plugin's lists with
@@ -168,6 +172,24 @@ def summary(secs):
             "loudest": levels[-1], "peak": peak, "s": len(loud)}
 
 
+# --check: louder than the loudest cartridge measured, more than 4 dB under
+# their average, or a peak at full scale
+CHECK_LOUDEST, CHECK_QUIETEST, CLIP_DB = -20.5, -26.0, -0.1
+
+
+def check(name, r):
+    """OK or FAIL for a summary() against the cartridges; True if OK"""
+    why = []
+    if r["rms"] > CHECK_LOUDEST:
+        why.append(f"louder than any cartridge ({CHECK_LOUDEST} dBFS)")
+    if r["rms"] < CHECK_QUIETEST:
+        why.append(f"quieter than {CHECK_QUIETEST} dBFS, 4 dB under a cartridge")
+    if r.get("peak") is not None and r["peak"] >= CLIP_DB:
+        why.append("a peak at full scale: it clips")
+    print(f"{name}: {'FAIL, ' + '; '.join(why) if why else 'OK'} (cartridges: -20.5 to -23.9 dBFS rms)")
+    return not why
+
+
 def show(name, r, what="with sound"):
     print(f"{name}: rms {r['rms']:.1f}  median {r['median']:.1f}  loudest {r['loudest']:.1f}  "
           f"peak {r['peak']:.1f} dBFS  ({r['s']} seconds {what})")
@@ -210,7 +232,9 @@ def main():
     if not args or args[0] in ("-h", "--help"):
         sys.exit(__doc__)
     plain = "--plain" in args
-    args = [a for a in args if a != "--plain"]
+    want_check = "--check" in args
+    args = [a for a in args if a not in ("--plain", "--check")]
+    ok = True
     ref = None
     if args and args[0] == "--span":
         if len(args) < 3:
@@ -222,8 +246,11 @@ def main():
             if not v:
                 print(f"{path}: empty")
                 continue
-            show(path, summary(seconds(rate, v, plain)))
-        return
+            r = summary(seconds(rate, v, plain))
+            show(path, r)
+            if want_check:
+                ok = check(path, r) and ok
+        sys.exit(0 if ok else 1)
     rr, rv = samples(ref)
     rsec = seconds(rr, rv, plain)
     show(ref, summary(rsec))
@@ -241,8 +268,11 @@ def main():
         r = summary(span)
         r["s"] = len(span)
         show(f"  over {ref}'s seconds with sound", r, "of them")
+        if want_check:
+            ok = check(f"  {path}", r) and ok
         if rest:
             print(f"  in {ref}'s {len(rest)} silent seconds: {db_power(sum(s[0] for s in rest) / len(rest)):.1f} dBFS rms")
+    sys.exit(0 if ok else 1)
 
 
 if __name__ == "__main__":

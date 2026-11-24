@@ -88,21 +88,35 @@ plugins were far too quiet next to one. Compare the two in MAME,
 recorded the same way:
 
 ```sh
+# your plugin: 30 seconds on the Mac with the controls that make it play,
+# then MAME records what it sent through the SDK's real kernel
+tools/loudness.sh src 30 "300:key=1 400:key="
 # a cartridge you own, 60 seconds of its title and attract mode
 SDL_VIDEODRIVER=dummy mame coleco -rompath "$MAME_ROMPATH" -cart cart.col \
     -video none -videodriver dummy -window -nomaximize -sound none \
     -nothrottle -skip_gameinfo -seconds_to_run 60 -wavwrite cart.wav
-# your plugin's lists from its test/run.sh run, on the same machine
-MAME_WAV=plugin.wav tools/mame-replay.sh "${TMPDIR:-/tmp}/parrotcart-test/myplugin/lists.bin" /tmp/replay 60
-python3 tools/wavlevel.py cart.wav plugin.wav
+python3 tools/wavlevel.py cart.wav
 ```
+
+`tools/loudness.sh` works for screen plugins and frame plugins. It
+builds the plugin for the Mac, runs it with the script (`PC_SCRIPT` in
+`test/host/host.c`), and has headless MAME play what it sent to the real
+kernel with `-wavwrite` (`MAME_WAV=plugin.wav tools/mame-replay.sh`).
+A frame plugin's sound is in its lists. A screen plugin's goes through
+the sound mailbox, so the models write it to `sound.bin` beside
+`lists.bin`, and MAME plays it at its times. Give it the folder of a
+`test/run.sh` run instead (`tools/loudness.sh
+"${TMPDIR:-/tmp}/parrotcart-test/myplugin"`) and it measures that run.
 
 `-sound none` keeps MAME quiet on the computer, and `-wavwrite` still
 records. `wavlevel.py` gives each file's level in dBFS, leaving out its
 silent seconds. Get the plugin's `rms` within a few dB of the
-cartridge's. A `peak` at 0 means the sound clips. The lists are only as
-long as the test's script, so give it a script that plays the game's
-sound for a while. Then listen on a TV, which MAME can't stand in for.
+cartridge's. A `peak` at 0 means the sound clips. `loudness.sh` checks
+this with `wavlevel.py --check`: it fails a plugin louder than the
+loudest cartridge below, more than 4 dB quieter than their average, or
+clipping. The run is only as long as its script, so give it one that
+plays the game's sound for a while. Then listen on a TV, which MAME
+can't stand in for.
 
 It measures each second from 20 Hz to 15 kHz. A plugin that plays
 samples (`examples/samples`) has two things in its recording that aren't
@@ -117,20 +131,21 @@ Ordinary cartridges measured this way give an `rms` of -20.5 to -23.9
 dBFS (Donkey Kong, Smurf, Lady Bug and Mr. Do!), about -22 on average.
 Aim within 3 or 4 dB of that and not above it.
 
-Without the BIOS, MAME can't play the lists, but a frame plugin's level
-can still be worked out from them:
+Without the BIOS, MAME can't play anything, but the level can still be
+worked out from the run. `loudness.sh` does this when MAME or the BIOS
+isn't there, or with `NO_MAME=1`:
 
 ```sh
-python3 tools/listlevel.py "${TMPDIR:-/tmp}/parrotcart-test/myplugin/lists.bin"
+python3 tools/listlevel.py --check "${TMPDIR:-/tmp}/parrotcart-test/myplugin/lists.bin"
 ```
 
 It times each sound byte as the console would, takes each voice's level
 from `tools/ladder.json` (measured on a real console), and prints `rms`,
 `median` and `loudest` in the same dBFS as `wavlevel.py` on MAME's
-recording. On the kit's samples example, on tones, on noise and on
-Donkey Kong Jr.'s lists it came within half a dB of MAME. A screen
-kernel plugin's sound isn't in `lists.bin`, so this is for frame
-plugins only.
+recording. For a screen plugin it reads the `sound.bin` beside
+`lists.bin`. On the kit's samples example, on tones, on noise and on
+Donkey Kong Jr.'s lists it came within half a dB of MAME, and on the
+sound example's mailbox within 0.6 dB.
 
 To match an arcade game's balance instead, record the arcade in MAME
 over the same play and measure the plugin over the seconds where the

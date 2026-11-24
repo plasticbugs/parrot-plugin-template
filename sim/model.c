@@ -35,6 +35,7 @@ static void model_mailbox(void);
 #define SIM_END()           sim_on_end(fails)
 #define SIM_MIDI(b, n, dev) midi_send((b), (n), (dev), now_us)
 #define SIM_EVENT(w, v)     sim_on_event((w), (v))
+#define SIM_SOUND_FILE()    opt.lists
 
 #undef _DEFAULT_SOURCE                  // (host.c defines it again; the headers have it already)
 #define main host_main
@@ -91,6 +92,10 @@ void model_init(void) {
     else snprintf(path, sizeof path, "%s", NULL_DEVICE);
     listf = fopen(path, "wb");
     if (!log_file || !listf) { perror(out_dir); exit(2); }
+    if (opt.lists) {                    // (a screen plugin's cvk_start() makes it again)
+        snprintf(path, sizeof path, "%s/sound.bin", out_dir);
+        remove(path);
+    }
     if (opt.script) script_at = script = strdup(opt.script);
     if (opt.no_psram) {
         static char no_psram[] = "PC_NO_PSRAM=1";

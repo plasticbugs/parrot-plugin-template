@@ -254,7 +254,8 @@ won't forgive. Each one has a reason.
 - Make it as loud as an ordinary ColecoVision cartridge at the same TV
   volume. The cart's first arcade plugins were far too quiet next to one.
   Round off peaks with a soft knee instead of clipping, and measure the
-  level against a cartridge in MAME (`docs/testing.md`, "How loud").
+  level with `tools/loudness.sh`, for a screen plugin or a frame plugin
+  (`docs/testing.md`, "How loud").
 - A picture taller than 192 lines, such as an arcade game's, fits whole
   when scaled by 3/4 with `cvscale34()` (`cvscale.h`, built into every
   frame plugin). The score and lives go in the side margins that leaves

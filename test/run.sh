@@ -189,6 +189,14 @@ fi
 if wanted sound; then
     PC_END=3000 PC_SCRIPT="300:key=1 600:key= 800:joy=up 900:joy= 1000:key=6 1400:key= 1600:joy=fire 1700:joy=" \
         run sound "$kit/examples/sound" 'sound 26[123]Hz@2 - - noise@15' 'sound 88[0-9]Hz@2 - - noise@15' 'noise control E5 \(white noise, rate 1\)' 'sound - - - noise@0' 'sound - - - noise@14'
+    # how loud, as tools/loudness.sh measures a run: its sound.bin through the
+    # real kernel in MAME, or worked out without MAME (docs/testing.md, "How loud")
+    if NO_MAME=$([ $have_mame = 1 ] || echo 1) "$kit/tools/loudness.sh" "$out/sound" >"$out/sound/loudness.txt" 2>&1; then
+        how=$(grep -q 'plugin.wav: rms' "$out/sound/loudness.txt" && echo "MAME's recording" || echo "worked out")
+        echo "  how loud: $(grep -o 'rms [-0-9.]*' "$out/sound/loudness.txt" | tail -1) dBFS ($how), as loud as a cartridge"
+    else
+        echo "  FAIL: tools/loudness.sh:"; sed 's/^/    /' "$out/sound/loudness.txt"; status=1
+    fi
 fi
 if wanted usb-gamepad; then
     PC_END=1000 run usb-gamepad-none "$kit/examples/usb-gamepad" 'usb: the port is a host'

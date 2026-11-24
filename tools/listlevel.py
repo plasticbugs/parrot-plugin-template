@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-"""listlevel.py LISTS.bin [--ladder tools/ladder.json] -- how loud a frame
-plugin's lists will sound, without MAME or the ColecoVision BIOS.
+"""listlevel.py [--check] LISTS.bin|SOUND.bin ... [--ladder tools/ladder.json]
+-- how loud a plugin's sound will be, without MAME or the ColecoVision BIOS.
 
 The MAME step (MAME_WAV=plugin.wav tools/mame-replay.sh, then
 tools/wavlevel.py) needs the BIOS, coleco.zip, which the kit can't
-include. This works the sound out from the lists themselves, as the
-models record them (test/run.sh leaves LISTS.bin in each run's folder):
-each sound byte at its time in the list by the kernel's costs, each
-voice's level from tools/ladder.json (measured on a real console), and
-the result scaled to what MAME's recording of the same lists measures.
-It prints the same numbers as wavlevel.py, in the same dBFS, so a plugin
-can be set as loud as a cartridge (docs/testing.md, "How loud").
+include. This works the sound out from what the models record
+(test/run.sh leaves them in each run's folder): a frame plugin's lists
+(lists.bin), or a screen plugin's sound mailbox (sound.bin, beside its
+lists.bin, which is used when lists.bin has no frame lists). Each sound
+byte at its time, by the kernel's costs; each voice's level from
+tools/ladder.json (measured on a real console); and the result scaled to
+what MAME's recording of the same sound measures. It prints the same
+numbers as wavlevel.py, in the same dBFS, so a plugin can be set as loud
+as a cartridge (docs/testing.md, "How loud").
 
 It prints rms, median and loudest as wavlevel.py does (not the peak,
 which this can't know). They agree with MAME's recording within about
 half a dB, for samples through the three-tone DAC, tones and noise. Use
 MAME when you have the BIOS, and a TV in the end.
 
-Only frame-kernel lists carry their sound. A screen-kernel plugin's
-sound isn't in LISTS.bin; its log.txt has it.
+--check  also say OK or FAIL against the cartridges' range, as
+         wavlevel.py --check does, and exit 1 on a FAIL
 
     python3 tools/listlevel.py "$TMPDIR/parrotcart-test/myplugin/lists.bin"
 """
@@ -57,6 +59,46 @@ def lists(path):
         if kind == ord("F"):
             out.append((flags, full, body))
     return out
+
+
+def sound_records(path):
+    """a screen plugin's sound.bin (test/host/host.c): (us, mailbox $FF00-$FF0C)
+    for each change the plugin published, or None if path isn't one"""
+    with open(path, "rb") as f:
+        data = f.read()
+    if data[:8] != b"PCSOUND1":
+        return None
+    out = []
+    for p in range(8, len(data) - 16, 17):
+        out.append((int.from_bytes(data[p:p + 4], "little"), data[p + 4:p + 17]))
+    return out
+
+
+SILENCE = bytes([0x80, 0x00, 0x9F, 0xA0, 0x00, 0xBF, 0xC0, 0x00, 0xDF, 0xFF])
+BYTE_T = 50                       # a sound byte about every 50 cycles: OTIR's 21 and the sound chip's READY wait
+
+
+def mailbox_events(recs):
+    """the sound bytes the screen kernel writes, each with its time in
+    cycles: when SND_SEQ changes, the noise control if NSEQ did, then the
+    10 bytes (midihello.asm's sound loop, which polls all the time)"""
+    ev = [(BYTE_T * k, b) for k, b in enumerate(SILENCE)]     # what it sends at its start
+    snd_sent, nseq_sent = 0, 0
+    end = 0
+    for us, mb in recs:
+        t = int(us * Z80_HZ / 1e6)
+        end = max(end, t)
+        if mb[0] == snd_sent:
+            continue
+        snd_sent = mb[0]
+        if mb[11] != nseq_sent:
+            nseq_sent = mb[11]
+            ev.append((t, mb[12]))
+            t += BYTE_T
+        for k in range(10):
+            ev.append((t + BYTE_T * k, mb[1 + k]))
+    ev.sort(key=lambda e: e[0])
+    return ev, end
 
 
 def events(recs):
@@ -169,13 +211,28 @@ def main():
         i = args.index("--ladder")
         ladder = args[i + 1]
         del args[i:i + 2]
+    check = "--check" in args
+    args = [a for a in args if a != "--check"]
     amp = json.load(open(ladder))["amp"]
+    ok = True
     for path in args:
-        recs = lists(path)
-        if not recs:
-            print(f"{path}: no frame lists (a screen-kernel plugin's sound isn't in lists.bin)")
-            continue
-        ev, end = events(recs)
+        snd = sound_records(path)
+        if snd is None:
+            recs = lists(path)
+            beside = os.path.join(os.path.dirname(path), "sound.bin")
+            if not recs and os.path.exists(beside):
+                snd = sound_records(beside)
+            elif not recs:
+                print(f"{path}: no frame lists, and no sound.bin beside it (a screen plugin's sound, "
+                      "which test/host/host.c writes)")
+                ok = False
+                continue
+        if snd is not None:
+            ev, end = mailbox_events(snd)
+            what = f"{len(snd)} sound changes"
+        else:
+            ev, end = events(recs)
+            what = f"{len(recs)} lists"
         x = render(ev, end, amp)
         rate = Z80_HZ / STEP_T
         # wavlevel's seconds and summary, on samples in the ladder's units
@@ -185,7 +242,11 @@ def main():
         r = int(round(rate))
         res = wavlevel.summary(wavlevel.seconds(r, v, False))
         print(f"{path}: rms {res['rms']:.1f}  median {res['median']:.1f}  loudest {res['loudest']:.1f} dBFS  "
-              f"({res['s']} seconds with sound, of {end / Z80_HZ:.1f}; {len(recs)} lists)")
+              f"({res['s']} seconds with sound, of {end / Z80_HZ:.1f}; {what})")
+        if check:
+            res["peak"] = None                  # (this can't know it)
+            ok = wavlevel.check(path, res) and ok
+    sys.exit(0 if ok or not check else 1)
 
 
 if __name__ == "__main__":

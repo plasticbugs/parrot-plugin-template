@@ -24,7 +24,9 @@
 // is written to PC_OUT/screen.png (256x192, the size a registry screenshot
 // must be), what happened to PC_OUT/log.txt, and every list the plugin sent
 // to PC_OUT/lists.bin, which tools/mame-replay.sh plays to the real kernel
-// in MAME.
+// in MAME. A screen plugin's sound, which isn't in its lists, goes to
+// PC_OUT/sound.bin, which mame-replay.sh plays when it records a WAV and
+// tools/listlevel.py measures (tools/loudness.sh does both).
 //
 // PC_SCRIPT is "MS:WHAT=VALUE ..." in time order:
 //   joy=up+fire        the stick and fire buttons held (up down left right fire fire2); joy= lets go
@@ -104,6 +106,7 @@ int plugin_main(void);
 #define SIM_END()                   // the end, just before the exit
 #define SIM_MIDI(bytes, n, to_dev)  // the plugin sends n MIDI bytes: to a computer, or to the MIDI device
 #define SIM_EVENT(what, v) false    // a script word the models don't know: the simulator's, if it takes it
+#define SIM_SOUND_FILE() true       // whether a screen plugin's sound goes to sound.bin
 #endif
 
 // ---- the test's clock, log and end -----------------------------------------------
@@ -111,7 +114,7 @@ int plugin_main(void);
 static uint64_t now_us = 1000;
 static uint64_t end_us = 3000000;
 static const char *out_dir = ".";
-static FILE *log_file, *listf;
+static FILE *log_file, *listf, *soundf;
 static int fails;
 static uint64_t t_task;        // the last cvk_task()/cvf_task(): see polled()
 static bool home_off;           // cvk_home(false) / cvf_home(false)
@@ -411,6 +414,20 @@ static void list_record(char kernel, bool full, uint8_t seq, const uint8_t *b, s
     lists_sent++;
 }
 
+// sound.bin, the screen kernel's sound for tools/mame-replay.sh and
+// tools/listlevel.py: "PCSOUND1", then each time the plugin publishes a
+// change to the mailbox's sound, the us since cvk_start() (4 bytes, little
+// end first) and $FF00-$FF0C as published (SND_SEQ, the 10 sound bytes,
+// NSEQ, NCTL). The last record, at the end, repeats the one before it.
+static uint64_t k_start_us;
+static void sound_record(void) {
+    if (!soundf) return;
+    const uint32_t us = (uint32_t)(now_us - k_start_us);
+    const uint8_t t[4] = {(uint8_t)us, (uint8_t)(us >> 8), (uint8_t)(us >> 16), (uint8_t)(us >> 24)};
+    fwrite(t, 1, 4, soundf);
+    fwrite(mbox, 1, MB_NCTL + 1, soundf);
+}
+
 static void k_frame(void) {
     if (k_list.out) {                   // LIST_SEQ changed: run it, or (just started, and it isn't a whole screen) skip it
         if (!k_hello || k_list.full) {
@@ -434,7 +451,10 @@ void cvk_start(const cvk_config_t *c) {
     (void)c;
     k_on = true;
     t_task = now_us;
-
+    k_start_us = now_us;
+    char path[1024];
+    snprintf(path, sizeof path, "%s/sound.bin", out_dir);
+    if (SIM_SOUND_FILE() && (soundf = fopen(path, "wb"))) fwrite("PCSOUND1", 1, 8, soundf);
     vdp_t v;
     vdp_init(&v);
     memcpy(k_vram, v.vram, VRAM_SIZE);
@@ -489,6 +509,7 @@ void cvk_publish(void) {
         logline("sound%s noise@%u", line, s[9] & 15u);
         sounds_sent++;
     }
+    if (mbox[MB_SND_SEQ] != mbox_live[MB_SND_SEQ] || mbox[MB_NSEQ] != mbox_live[MB_NSEQ]) sound_record();
     SIM_MAILBOX();
     memcpy(mbox_live, mbox, MB_SIZE);
 }
@@ -1110,6 +1131,10 @@ static void finish(void) {
     printf(", note \"%s\"%s\n", note, fails ? " -- FAILED" : "");
     fclose(log_file);
     fclose(listf);
+    if (soundf) {
+        sound_record();                 // (to the end of the run)
+        fclose(soundf);
+    }
     SIM_END();
     exit(fails ? 1 : 0);
 }
@@ -1148,6 +1173,8 @@ int main(void) {
     log_file = fopen(path, "w");
     snprintf(path, sizeof path, "%s/lists.bin", out_dir);
     listf = fopen(path, "wb");
+    snprintf(path, sizeof path, "%s/sound.bin", out_dir);
+    remove(path);                       // (cvk_start() makes it: a frame plugin's sound is in its lists)
     if (!log_file || !listf) { perror(out_dir); return 2; }
     if (getenv("PC_SCRIPT")) script_at = script = strdup(getenv("PC_SCRIPT"));
     if (getenv("PC_CARD") && (card_fd = open(getenv("PC_CARD"), O_RDWR)) < 0) { perror(getenv("PC_CARD")); return 2; }

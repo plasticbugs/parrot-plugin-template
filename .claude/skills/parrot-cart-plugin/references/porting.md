@@ -241,15 +241,20 @@ arcade plugins measured about 12 dB below it.
   of full scale) a sample stays as it is. Above it, with x and y as
   fractions of full scale and the sign kept:
   `y = k + (1 - k) * (1 - exp(-(x - k) / (1 - k)))`. Put it in a table.
-- Measure it. Record a cartridge you own in MAME with `-wavwrite`, and
-  the plugin's lists with `MAME_WAV=plugin.wav tools/mame-replay.sh`, then
-  compare them with `python3 tools/wavlevel.py cart.wav plugin.wav`
-  (`docs/testing.md`, "How loud"). Then ask the user to listen on a TV.
+- Measure it. `tools/loudness.sh src 30 "SCRIPT"` runs the plugin for
+  30 seconds with a script that makes it play, records what it sent
+  through the real kernel in headless MAME, and says OK or FAIL against
+  the cartridges. It works for screen plugins too: their sound goes to
+  `sound.bin` beside `lists.bin`. To compare with a cartridge you own,
+  record it in MAME with `-wavwrite` and measure both with
+  `python3 tools/wavlevel.py` (`docs/testing.md`, "How loud"). Then ask
+  the user to listen on a TV.
 - The MAME step needs the ColecoVision BIOS, `coleco.zip`, which the kit
   can't include. Ask the user for the folder that has it and set
   `MAME_ROMPATH` to it. Never copy it into the repository. Without it,
-  `python3 tools/listlevel.py lists.bin` works the level out from the
-  lists in the same dBFS, within about half a dB of MAME.
+  `loudness.sh` works the level out from the run instead
+  (`tools/listlevel.py`), in the same dBFS, within about half a dB of
+  MAME.
 - To compare with the arcade, `tools/wavlevel.py --span arcade.wav
   plugin.wav` measures over the arcade's seconds with sound, and
   `tools/knee.py` says what the knee takes off each part of the mix.
