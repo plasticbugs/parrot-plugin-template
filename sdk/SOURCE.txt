@@ -24,10 +24,11 @@ also, from elsewhere:
       MAME's ROM names
   firmware/revc/sdk/cvhome.h, and in cvkernel.c/.h, cvframes.c/.h,
   cvpad.c/.h and README.md
-      the kit's own, not yet in the cart's repo: back to the menu from the
+      back to the menu from the
       controllers (both fire buttons and * or a pad's Select and Start held
       for 2 s), cvk_home()/cvf_home(), cvpad_held(). tools/add-home.py adds
       the same to an older SDK copy, such as a plugin's own sdk/
+      (the cart's main has it too, as 4036909)
   firmware/revc/sdk/cvsd.h
       the kit's own: 4070e7f's with cvsd_card_in()'s comment matching
       cvsd.c (it sets up the pins itself, so it works before cvsd_init())
