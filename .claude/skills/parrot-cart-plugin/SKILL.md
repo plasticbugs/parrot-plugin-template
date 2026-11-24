@@ -223,7 +223,7 @@ won't forgive. Each one has a reason.
 - **Leave a note** for the menu's bottom line when there's something to
   say: `cvk_note("Saved")`, 32 characters at most.
 - **Save as you go, and the last changes on the way out.** The console
-  can be switched off at any time, which cuts the cart's power, so write
+  can be switched off at any time, which can cut the cart's power, so write
   a save when something worth keeping changes. Keep two copies with a
   count and a checksum for a save a power cut must not lose.
   `cvk_on_exit(fn)` / `cvf_on_exit(fn)` runs fn on the way back to the
@@ -296,7 +296,7 @@ them, so don't go looking for them when the kit already shows the way.
 | icons, screenshots | `docs/icons.md`, `docs/screenshots.md` |
 | releasing and the plugins site | `docs/release-checklist.md` |
 | one small working plugin per topic | `examples/` (screen, sound, usb-gamepad, usb-keyboard-mouse, usb-midi-out, sd-card, open-file, frames, samples, two-controllers, psram). `new-plugin.py` leaves them out of a new plugin's folder unless given `--examples`; the kit has them |
-| a plugin for each test: every USB feature, the font and text editor, timers, the VDP, lists back to back | `test/usb`, `test/font`, `test/timers`, `test/vdp`, `test/b2b` |
+| a plugin for each test: every USB feature, the font and text editor, timers, the exit function, the VDP, lists back to back | `test/usb`, `test/font`, `test/timers`, `test/leave`, `test/vdp`, `test/b2b` |
 | the SDK's calls | `sdk/firmware/revc/sdk/README.md` and its headers |
 | more worked examples, not needed to build a plugin: full plugins with source (NES, Game Boy, Master System, PC Engine, Vectrex, SCUMM, Lua, Text Editor) | `https://github.com/plasticbugs/parrot-plugin-*` |
 | arcade games with source (Donkey Kong, Pac-Man, Ms. Pac-Man, Q*bert, Time Pilot, Mr. Do!, Pole Position, Cloak & Dagger, Dragon's Lair, and the vector games Star Wars and The Empire Strikes Back, with speech) | `https://github.com/plasticbugs/parrot-plugin-dkong` and so on (`-pacman`, `-mspacman`, `-qbert`, `-timeplt`, `-mrdo`, `-polepos`, `-cloak`, `-dlair`, `-starwars`, `-esb`). Time Pilot's and Mr. Do!'s have their MAME tests |

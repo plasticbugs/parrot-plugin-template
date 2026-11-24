@@ -217,7 +217,7 @@ make its home folder. Use `fs_mkdir()` when it needs one.
 #### Saves
 
 A write takes milliseconds, and the console can be switched off at any
-moment, which cuts the cart's power too. So:
+moment, which can cut the cart's power too. So:
 
 - Save as you go: when something worth keeping changes (a level done, a
   setting, a pattern edited). For changes that come fast, write a second

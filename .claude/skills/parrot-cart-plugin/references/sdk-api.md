@@ -236,7 +236,8 @@ Match entries by `e.crc` against the CRCs in MAME's driver for the game.
 - `cvk_note(text)` / `cvf_note(text)`: up to 32 characters, shown on the
   menu's bottom line after RESET.
 - `cvk_on_exit(fn)` / `cvf_on_exit(fn)`: fn runs once on the way back
-  (RESET, the controllers' way back, the console off), with core 1
+  (RESET, the controllers' way back, the console off while the cart has
+  power), with core 1
   stopped and the console parked, for the last save. It has 3 seconds
   (`CVK_EXIT_MS`, `CVF_EXIT_MS`); then the watchdog reboots into the menu,
   without the note if fn hadn't returned. It may call the note and the

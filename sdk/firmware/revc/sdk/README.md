@@ -93,11 +93,11 @@ A plugin needs to follow these rules:
 - Leave a note (`cvk_note("Saved")`) for the menu's bottom line when the
   plugin goes back. It can be up to 32 characters.
 - `cvk_on_exit(fn)` runs fn once on the way back to the menu (RESET, the
-  controllers' way back, the console switched off), with core 1 stopped
-  and the console parked. It's for the last save, of what changed since
-  the plugin last saved. It has `CVK_EXIT_MS` (3 seconds): the watchdog
-  then reboots into the menu, so the menu always comes back. It doesn't
-  run when the power goes, so save as you go too.
+  controllers' way back, the console off while the cart has power), with
+  core 1 stopped and the console parked. It's for the last save, of what
+  changed since the plugin last saved. It has `CVK_EXIT_MS` (3 seconds):
+  the watchdog then reboots into the menu, so the menu always comes back.
+  It doesn't run when the power goes, so save as you go too.
 
 ## USB features: `cvusb`
 
