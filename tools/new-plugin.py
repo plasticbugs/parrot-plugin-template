@@ -1137,6 +1137,9 @@ def cmakelists(p):
     if p.opens:
         extra.append("OPENS " + " ".join(p.opens) + " FILE_ICON src/file_icon.txt")
     extra = ("\n              " + " ".join(extra)) if extra else ""
+    today = datetime.datetime.now(datetime.timezone.utc).date()
+    day, epoch = today.isoformat(), int(datetime.datetime(today.year, today.month, today.day,
+                                                          tzinfo=datetime.timezone.utc).timestamp())
     return f"""# {p.name}: {p.about}
 #
 #   cmake -B build -G Ninja -DPICO_SDK_PATH=$HOME/pico-sdk
@@ -1148,6 +1151,13 @@ cmake_minimum_required(VERSION 3.13)
 include(cmake/parrotcart.cmake)
 project({p.target} C CXX ASM)
 parrotcart_init()
+
+# The same source makes the same file, whenever and wherever it's built (your
+# Mac today, GitHub's release build tomorrow): __DATE__ and __TIME__ come from
+# SOURCE_DATE_EPOCH, fixed here ({day}).
+set(BUILD_EPOCH {epoch})
+set(CMAKE_C_COMPILER_LAUNCHER ${{CMAKE_COMMAND}} -E env SOURCE_DATE_EPOCH=${{BUILD_EPOCH}})
+set(CMAKE_CXX_COMPILER_LAUNCHER ${{CMAKE_COMMAND}} -E env SOURCE_DATE_EPOCH=${{BUILD_EPOCH}})
 
 add_executable({p.target} src/main.c)
 {kernel}
