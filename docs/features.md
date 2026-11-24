@@ -207,11 +207,12 @@ files, and writing a file in place. `examples/sd-card` lists a folder and
 keeps a save file, and `examples/open-file` reads the file the menu
 started the plugin with. A plugin made by `tools/new-plugin.py` keeps its
 save in its home folder (`HOME`), or in `/PLUGINS` next to the plugin if
-it has no home folder. With `--opens .ext`, `tools/new-plugin.py` turns
-`CARD` on even without saves, and its `src/main.c` opens the file the
-menu started it with and shows the file's name and size. That plugin
-doesn't make its home folder, so the user needs to make it, or your
-plugin can make it with `fs_mkdir()` (`fsro.h`).
+it has no home folder. Its `make_folder()` makes the home folder with
+`fs_mkdir()` (`fsro.h`) when it isn't on the card yet, a level at a time.
+With `--opens .ext`, `tools/new-plugin.py` turns `CARD` on even without
+saves, and its `src/main.c` opens the file the menu started it with and
+shows the file's name and size. That plugin writes nothing, so it doesn't
+make its home folder. Use `fs_mkdir()` when it needs one.
 
 ## What it costs
 

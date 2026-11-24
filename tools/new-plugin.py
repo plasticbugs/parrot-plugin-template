@@ -649,9 +649,10 @@ static void psram_start(void) {
 //@if saves
 
 // ---- the save file ----------------------------------------------------------------------
-// SAVE_FILE in SAVE_FOLDER, 512 bytes, found or made at the start. Its
-// layout is yours. Keep SAVE_MAGIC at its start, and change its last
-// character when the layout changes, so a new release can tell an old save.
+// SAVE_FILE in SAVE_FOLDER, 512 bytes, found or made at the start, and the
+// folder made too if it isn't there. Its layout is yours. Keep SAVE_MAGIC at
+// its start, and change its last character when the layout changes, so a
+// new release can tell an old save.
 #define SAVE_FOLDER "@SAVE_FOLDER@"
 #define SAVE_FILE   "@SAVE_FILE@"
 #define SAVE_MAGIC  "@SAVE_MAGIC@"
@@ -675,6 +676,28 @@ static bool save_write(void) {
     return fs_write_sec(&fs, 0, sector) == FS_OK;
 }
 
+// A folder such as "/GAMES/MINE", one level at a time: found, or made with
+// fs_mkdir() if it isn't there. FS_OK, or why not.
+static int make_folder(const char *path) {
+    char up[64] = "/";                                  // the folder the next level goes in
+    for (const char *p = path; *p;) {
+        if (*p == '/') {
+            p++;
+            continue;
+        }
+        uint16_t name[32];                              // the file system takes names as UTF-16
+        int n = 0;
+        for (; p[n] && p[n] != '/' && n < 32; n++) name[n] = (uint8_t)p[n];
+        fs_file_t dir;
+        bool made;
+        const int r = fs_mkdir(&fs, up, name, n, &dir, &made);
+        if (r != FS_OK) return r;
+        p += n;
+        snprintf(up, sizeof up, "%.*s", (int)(p - path), path);
+    }
+    return FS_OK;
+}
+
 // Once, at the start: the card's start takes a second or so, with the
 // screen standing still.
 static void save_start(void) {
@@ -691,10 +714,10 @@ static void save_start(void) {
         int n = 0;
         for (; SAVE_FILE[n]; n++) name[n] = (uint8_t)SAVE_FILE[n];
         bool made;
-        const int r = fs_create(&fs, SAVE_FOLDER, name, n, 512, &save_f, &made);   // found, or made with its size
-        if (r == FS_ENOFILE) {
+        if (make_folder(SAVE_FOLDER) != FS_OK) {
             why = "NO FOLDER " SAVE_FOLDER;
-        } else if (r != FS_OK || fs_open(&fs, &save_f) != FS_OK) {
+        } else if (fs_create(&fs, SAVE_FOLDER, name, n, 512, &save_f, &made) != FS_OK ||   // found, or made with its size
+                   fs_open(&fs, &save_f) != FS_OK) {
             why = "THE SAVE WON'T OPEN";
         } else {
             memcpy(save.magic, SAVE_MAGIC, 8);
@@ -1208,7 +1231,7 @@ def readme(p):
                          "a second and a half, the cart uses the hub instead.")
     if p.has("saves"):
         if p.home:
-            needs.append(f"Saves go in `{p.home}/{p.save_file}`. Make the folder `{p.home}` on the card first.")
+            needs.append(f"Saves go in `{p.home}/{p.save_file}`. {md(p.name)} makes the folder `{p.home}` if it isn't there.")
         else:
             needs.append(f"Saves go in `/PLUGINS/{p.save_file}`, next to the plugin.")
     if p.opens:
@@ -1323,6 +1346,13 @@ TESTS_NOTE = """# Each run fails on any rule the models see (test/host/host.c). 
 """
 
 
+# what the card tests check, in both blocks: the save the template writes
+SAVE_NOTE = ["    # The save src/main.c writes as it comes: SAVE_FILE in SAVE_FOLDER, 512 bytes,",
+             "    # SAVE_MAGIC then a run count at byte 8. When your plugin saves something",
+             "    # else, change save= and magic=, or check your own file in place of the",
+             "    # last line."]
+
+
 def test_block(p):
     """test/run.sh's part for the plugin"""
     t = p.test
@@ -1332,15 +1362,14 @@ def test_block(p):
                 f'    PC_END={ms} PC_SCRIPT="{script}" \\',
                 f'        run {name} "$kit/src" ' + " ".join(shq(w) for w in want), "fi"]
     if p.has("saves"):
-        path = f"{p.save_folder}/{p.save_file}"
-        folder = f" {shq(p.home)}" if p.home else ""
-        out += [f"if wanted {t}-card; then",
+        out += [f"if wanted {t}-card; then"] + SAVE_NOTE + [
+                f"    save={shq(p.save_folder + '/' + p.save_file)} magic={p.save_magic}",
                 f"    PC_END=1500 run {t}-nocard \"$kit/src\" 'back to the menu'",
-                f"    card \"MS-DOS FAT32:MBRSPUD:fat32\"{folder}",
+                "    card \"MS-DOS FAT32:MBRSPUD:fat32\"" + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
                 "    for n in 1 2; do",
                 f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu'",
                 "    done",
-                "    card_fsck fat32 \"MS-DOS FAT32\"     # (card_check also reads a save's bytes: test/run.sh)",
+                '    card_check fat32 "MS-DOS FAT32" 2 "$save" "$magic"',
                 "fi"]
     if p.opens:
         # (the models don't look at the extension: the card's text file will do)
@@ -1364,16 +1393,16 @@ def sim_test_block(p):
                 f'    run {name} "$kit/src" --ms {ms} --script "{script}"',
                 "    expect " + " ".join(shq(w) for w in want), "fi"]
     if p.has("saves"):
-        path = f"{p.save_folder}/{p.save_file}"
-        out += [f"if wanted {t}-card; then",
+        out += [f"if wanted {t}-card; then"] + SAVE_NOTE + [
+                f"    save={shq(p.save_folder + '/' + p.save_file)} magic={p.save_magic}",
                 f"    run {t}-nocard \"$kit/src\" --ms 1500",
                 "    expect 'back to the menu'",
-                '    tree "$out/card"' + (f'; mkdir -p "$out/card"{shq(p.home)}' if p.home else ""),
+                '    tree "$out/card"' + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
                 "    for n in 1 2; do",
                 f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" --ms 2500",
                 "        expect 'back to the menu'",
                 "    done",
-                f"    [ -f \"$out/card\"{shq(path)} ] || fail \"no {path} in the card folder\"   # (save_check reads its bytes: sim/test.sh)",
+                '    save_check "$out/card$save" "$magic" 2',
                 "fi"]
     if p.opens:
         out += [f"if wanted {t}-open; then",
