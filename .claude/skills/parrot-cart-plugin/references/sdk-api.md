@@ -64,6 +64,11 @@ the shape every screen plugin has.
 | `canvas_text(c, x, y, text, colour, scale)` | text with no background |
 | `cvfont_line(c, x, y, cols, text, fg, bg)`, `cvfont_char(...)` | the 6x8 font with lower case (`cvfont_use`) |
 
+`cvedit_use()` adds the SDK's text editor (`SDK/cvedit.h`) and the font.
+The Mac builds (`test/host/build.sh`, the simulator) link `cvfont.c` and
+`cvedit.c` when the plugin calls them, as they do `swzip.c`.
+`test/font/main.c` uses both.
+
 The canvas is 256x192 with two colours per 8x1 run. Colours are `C_BLACK`
 to `C_WHITE` in `MH/vdp.h`. Write the whole picture in `draw()` each time,
 because the SDK sends only what changed.

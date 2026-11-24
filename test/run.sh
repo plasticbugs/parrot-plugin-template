@@ -295,6 +295,12 @@ if wanted usb; then
         'note "usb ON A COMPUTER"' ' midi 90 3C 64$' ' midi 80 3C 00$' ' midi C0 05$'
     grep -q 'note "midi F0' "$out/usb-device/log.txt" && { echo "  FAIL: a SysEx came in (the cart passes none in)"; status=1; }
 fi
+# the SDK's font and text editor (cvfont.c, cvedit.c), which the models
+# link when a plugin calls them (test/font/main.c): every character, and an
+# editor that a USB keyboard types "Hi", Enter, "there" into
+if wanted font; then
+    PC_END=1500 PC_SCRIPT="$(cat "$kit/test/font/test.script")" run font "$kit/test/font" 'note "font: Hi\|there"'
+fi
 
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
 exit $status

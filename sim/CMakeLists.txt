@@ -183,9 +183,10 @@ endif()
 
 # ---- the SDK's optional parts --------------------------------------------------------
 # what a plugin adds to its own CMake sources when it uses it (swzip.c: zip
-# files), as a library, so it fills in only what the plugin's own files
-# don't have: a plugin with its own copy still links
-add_library(sdkextra STATIC "${SDK}/sdk/swzip.c")
+# files; cvfont.c and cvedit.c, by cvfont_use() and cvedit_use()), as a
+# library, so it fills in only what the plugin's own files don't have: a
+# plugin with its own copy still links
+add_library(sdkextra STATIC "${SDK}/sdk/swzip.c" "${SDK}/sdk/cvfont.c" "${SDK}/sdk/cvedit.c")
 target_include_directories(sdkextra PRIVATE ${includes})
 target_compile_options(sdkextra PRIVATE ${common_options})
 

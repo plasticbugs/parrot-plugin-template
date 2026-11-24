@@ -15,7 +15,7 @@
 #   sim/test.sh sound sd-card   just those
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
-# sd-card open-file frames samples two-controllers psram lua vdp usb. Pictures and
+# sd-card open-file frames samples two-controllers psram lua vdp usb font. Pictures and
 # logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
@@ -280,6 +280,13 @@ if wanted usb; then
         'note "pad2 HID PAD 00000820"' 'note "pad2 at 0,0 -2048,-2047"' 'note "pad1 OFF' 'note "pad1 SWITCH PRO 00000080"' 'note "pad2 HID PAD 00000000"'
     expect '^  1935 note "joy 20 key -1"' '^  1952 note "pad1 SWITCH PRO 00000000"' '^  2002 note "pad1 OFF' '^  2052 note "pad1 SWITCH PRO 00000000"'
     grep -q 'note "pad2 OFF' "$o/log.txt" && fail "pad 2 lost its slot when pad 1 was unplugged"
+fi
+
+# the SDK's font and text editor (cvfont.c, cvedit.c), linked when a
+# plugin calls them, as test/run.sh's font
+if wanted font; then
+    run font "$kit/test/font" --ms 1500 --script "$(cat "$kit/test/font/test.script")"
+    expect 'note "font: Hi\|there"'
 fi
 
 [ $compared = 0 ] && echo "(no test/host pictures to compare with: test/run.sh hasn't run here)"

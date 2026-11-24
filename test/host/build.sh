@@ -6,8 +6,9 @@
 # cvcart_features() turns on (in PLUGIN_DIR/CMakeLists.txt, or the one
 # above it for src/) are the CVUSB_* switches of everything built here:
 # test/host/plugin.cmake reads them (so needs CMake), for the simulator too.
-# The SDK's optional parts (sdk/swzip.c, which a plugin adds to its CMake
-# sources) are linked in when the plugin calls them.
+# The SDK's optional parts (swzip.c, which a plugin adds to its CMake
+# sources, and cvfont.c and cvedit.c, which cvfont_use() and cvedit_use()
+# add) are linked in when the plugin calls them.
 set -e
 kit=$(cd "$(dirname "$0")/../.." && pwd)
 dir=$1
@@ -31,14 +32,17 @@ for c in "$dir"/*.c; do
 done
 # shellcheck disable=SC2086
 cc $flags -Dcvs_update=sdk_cvs_update -c "$sdk/sdk/cvscreen.c" -o "$obj/cvscreen.o"
-# the SDK's parts a plugin adds to its sources when it uses them (swzip.c),
-# as a library: they fill in only what the plugin's own files don't have,
-# so a plugin with its own copy still links
-# shellcheck disable=SC2086
-cc $flags -c "$sdk/sdk/swzip.c" -o "$obj/swzip.lib.o"
+# the SDK's parts a plugin adds to its sources when it uses them (swzip.c;
+# cvfont.c and cvedit.c, by cvfont_use() and cvedit_use()), as a library:
+# they fill in only what the plugin's own files don't have, so a plugin
+# with its own copy still links
 rm -f "$obj/libsdkextra.a"
-ar rcs "$obj/libsdkextra.a" "$obj/swzip.lib.o"
-rm -f "$obj/swzip.lib.o"
+for part in swzip cvfont cvedit; do
+    # shellcheck disable=SC2086
+    cc $flags -c "$sdk/sdk/$part.c" -o "$obj/$part.lib.o"
+done
+ar rcs "$obj/libsdkextra.a" "$obj"/*.lib.o
+rm -f "$obj"/*.lib.o
 # shellcheck disable=SC2086
 cc $flags "$kit/test/host/host.c" "$kit/test/host/tms9918.c" "$sdk/midihello/vdp.c" "$sdk/sdplayer/fsro.c" \
     "$sdk/sdk/cvusb_keys.c" "$sdk/sdk/cvusb_midi.c" "$sdk/sdk/cvscale.c" "$obj"/*.o "$obj/libsdkextra.a" -lz -lm -o "$out"
