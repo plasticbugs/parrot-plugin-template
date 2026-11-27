@@ -124,7 +124,10 @@ frames plugin can read the console's second controller too
 (`--controller2`). Its license is MIT unless you pick another one. `tools/new-plugin.py`
 includes the full license text for MIT, BSD-2-Clause, BSD-3-Clause, ISC,
 Apache-2.0, GPL-2.0 and GPL-3.0 (each `-only` or `-or-later`) and
-LGPL-2.1-or-later. `docs/features.md` describes the features.
+LGPL-2.1-or-later. `docs/features.md` describes the features. Its tests
+in `test/run.sh` are named after the file (`SWEEPER.CVP` gets `sweeper`,
+`sweeper-usb` and so on), and `--git` makes the folder a git repository
+with the new plugin as its first commit.
 
 To do it by hand instead, edit this line in `CMakeLists.txt`:
 

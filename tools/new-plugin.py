@@ -16,11 +16,14 @@
 #   --here      this copy of the kit, made into the plugin in place of Hello
 #   --examples  keep examples/ (left out by default: they are the kit's, to
 #               read, not the plugin's)
+#   --git       make it a git repository (git init, unless it is one) and
+#               commit the new plugin, with your git name and email
 #
 # What it writes: CMakeLists.txt (the features on), src/main.c (each
 # feature on the TV, working, and YOUR CODE where yours goes), src/icon.txt,
 # README.md (as docs/readme-spec.md says), LICENSE, THIRD-PARTY.md, the
-# plugin's tests in test/run.sh and sim/test.sh, and the workflow's list of
+# plugin's tests in test/run.sh and sim/test.sh (named after the .CVP:
+# SWEEPER.CVP's are sweeper, sweeper-usb ...), and the workflow's list of
 # them. The rest of the kit (cmake/, sdk/, lib/, sim/, test/, tools/, docs/,
 # the workflows) comes as it is. docs/features.md has each feature.
 #
@@ -30,6 +33,7 @@ import datetime
 import os
 import re
 import shutil
+import subprocess
 import sys
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -263,13 +267,15 @@ class Plugin:
         self.icon = a.icon or ("note" if {"midi-in", "midi-out"} & set(a.features) else "pad" if "pads" in a.features else "star")
         self.license = a.license
         s = slug(self.name) or "plugin"
-        self.test = s                                          # test/run.sh's name for it
         t = s.replace("-", "_")
         self.target = t if t[0].isalpha() else "p_" + t
         self.controller2 = bool(getattr(a, "controller2", False))
         self.examples = False                                  # (reshape() says)
         stem = a.file or default_file(self.name)
         self.stem = stem
+        # test/run.sh's name for it: the .CVP's, in lower case (reshape()
+        # takes the name's slug when that is a test the kit has already)
+        self.test = stem.lower()
         self.file = stem + ".CVP"
         self.save_file = stem + ".SAV"
         self.save_folder = self.home or "/PLUGINS"
@@ -1472,8 +1478,25 @@ def kit_links(text):
     return "\n".join(out)
 
 
+def kit_tests(root):
+    """the tests test/run.sh and sim/test.sh have besides the plugin's own"""
+    names = set()
+    for rel in (("test", "run.sh"), ("sim", "test.sh")):
+        path = os.path.join(root, *rel)
+        if os.path.exists(path):
+            s = re.sub(r"# ---- the plugin in src/.*?# ---- the examples ----\n", "", open(path).read(), flags=re.S)
+            names |= set(re.findall(r"^\s*if wanted (\S+); then", s, re.M))
+    return names
+
+
 def reshape(root, p, examples):
     p.examples = examples
+    # the tests are named after the .CVP, unless the kit has a test of that name
+    taken = kit_tests(root)
+    for name in (p.test, slug(p.name), "plugin-" + p.test):
+        p.test = name
+        if not set(p.tests()) & taken:
+            break
     # src/: the plugin's main.c and icons, in place of what was there
     src = os.path.join(root, "src")
     for f in ("main.c", "icon.txt", "file_icon.txt"):
@@ -1618,6 +1641,8 @@ def interview(a):
     if a.examples is None:
         a.examples = ask("\nKeep examples/, the small plugins that each show one thing? y/n",
                          one_of("y", "n"), "n") == "y"
+    if a.git is None:
+        a.git = ask("Make it a git repository and commit it? y/n", one_of("y", "n"), "y") == "y"
     p = Plugin(a)
     print(f"\n{p.name} {p.version} by {p.by} ({p.id}, {p.file}): {p.screen} screen" +
           (" with controller 2" if p.controller2 else "") + ", "
@@ -1626,6 +1651,31 @@ def interview(a):
     if ask("Write the plugin? y/n", one_of("y", "n"), "y") != "y":
         raise SystemExit(1)
     return p
+
+
+def commit(root, p):
+    """git init (unless root is in a repository already, as a clone of the
+    kit is), then every file as the first commit, on main. What it did, for
+    the summary; it stops with git's words when git fails (no name or email
+    set, say)."""
+    def git(*args):
+        r = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"new-plugin.py: git {' '.join(args)} failed, so the plugin is written but not "
+                             f"committed:\n{(r.stderr or r.stdout).strip()}")
+        return r.stdout.strip()
+    if shutil.which("git") is None:
+        raise SystemExit("new-plugin.py: --git needs git, which isn't installed. The plugin is written, not committed")
+    made = False
+    inside = subprocess.run(["git", "-C", root, "rev-parse", "--show-toplevel"], capture_output=True, text=True)
+    if inside.returncode or os.path.realpath(inside.stdout.strip()) != os.path.realpath(root):
+        git("init", "-q")
+        git("symbolic-ref", "HEAD", "refs/heads/main")      # (the workflows build on pushes to main)
+        made = True
+    git("add", "-A")
+    git("commit", "-q", "-m", f"Start {p.name} {p.version} from the plugin kit (tools/new-plugin.py)")
+    head = git("rev-parse", "--short", "HEAD")
+    return ("a new repository, " if made else "") + f"first commit {head}"
 
 
 def default_out(name):
@@ -1664,6 +1714,8 @@ def main():
     ap.add_argument("--here", action="store_true", help="make this kit into the plugin, in place of Hello")
     ap.add_argument("--examples", action="store_true", default=None,
                     help="keep examples/, the small plugins that each show one thing (default: left out)")
+    ap.add_argument("--git", action="store_true", default=None,
+                    help="make the plugin's folder a git repository (git init, unless it is one) and commit it")
     ap.add_argument("--force", action="store_true", help="write over src/main.c that isn't Hello, or into a folder that isn't empty")
     a = ap.parse_args()
     if a.here and a.out:
@@ -1712,6 +1764,7 @@ def main():
         examples = bool(a.examples)
         copy_kit(root, examples)
     reshape(root, p, examples)
+    committed = commit(root, p) if a.git else None
 
     where = os.path.relpath(root)
     print(f"{p.name}: {where}")
@@ -1723,6 +1776,8 @@ def main():
     if p.license not in LICENSES:
         print(f"  LICENSE          paste the {p.license} text into it")
     print("  examples/        " + ("kept" if examples else "left out (--examples keeps it)"))
+    if committed:
+        print(f"  git              {committed}")
     print("Next steps:")
     if root != KIT:
         print(f"  cd {where}")

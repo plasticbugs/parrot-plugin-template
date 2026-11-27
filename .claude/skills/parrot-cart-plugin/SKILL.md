@@ -96,7 +96,12 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   decides this, so check the core's license first.
 - Its tests in `test/run.sh` and `sim/test.sh` only check what holds for
   any plugin (it runs, RESET gets back to the menu, the card stays
-  clean). Add your plugin's own expectations to them as you go.
+  clean). They're named after the `.CVP` (`SWEEPER.CVP`: `sweeper`,
+  `sweeper-usb`, `sweeper-card`). Add your plugin's own expectations to
+  them as you go.
+- `--git` runs `git init` (unless the folder is a repository already)
+  and commits the new plugin, so the user's first change has something
+  to diff against. It uses their git name and email.
 
 **The ID is permanent.** It's `developer.pluginname`: lower case, digits,
 `.`, `-` and `_`, up to 32 characters. The menu and the plugins site tell
