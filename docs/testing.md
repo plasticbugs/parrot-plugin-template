@@ -205,7 +205,9 @@ tools/armcount/build.sh /tmp/bench.elf test/bench.c src/game.c -- -O2
 ```
 
 `bench.c` is a working example (a picture scaled by 3/4 each list), so
-run it once as it is. `build.sh` builds with the pico-sdk's flags,
+run it once as it is, with the SDK's scaler:
+`tools/armcount/build.sh /tmp/bench.elf tools/armcount/bench.c
+sdk/firmware/revc/sdk/cvscale.c`. `build.sh` builds with the pico-sdk's flags,
 everything in SRAM; pass your plugin's own flags after `--`.
 `--load bench_data=FILE` fills a global from a file before the start,
 which is how a bench gets the user's ROMs without the card, and
@@ -221,10 +223,29 @@ cycles (`--psram-miss` changes it), and so does every access through
 `CVPSRAM_UNCACHED`. The report's last line counts them. A plugin that
 reads a big ROM from the PSRAM in a pattern the cache can't hold shows
 it here: 70 cycles for each 8 bytes is about 9 cycles a byte, against 1
-or 2 from SRAM. The PSRAM Example's times on a cart are the real speed. Leave a few milliseconds to spare: it
-can't count what the bus costs when the other core or the DMA uses the
-same RAM, so the plugin's own count of late lists on the cart is the
-last word.
+or 2 from SRAM. The PSRAM Example's times on a cart are the real speed.
+
+Leave a few milliseconds to spare: it can't count what the bus costs
+when the other core or the DMA uses the same RAM, so the plugin's own
+count of late lists on the cart is the last word.
+
+`build.sh` links the C library a plugin links, the pico-sdk's newlib in
+full. Don't add `--specs=nano.specs`: newlib-nano's `memset` and
+`memcmp` go a byte at a time. In armcount, with the plugin's newlib:
+
+| Call | newlib (a plugin's) | newlib-nano |
+|---|---|---|
+| `memset` of 4 KB | 2,362 cycles | 32,786 |
+| `memcmp` of 16 bytes, both word-aligned | 100 | 242 |
+| `memcmp` of 16 bytes, not aligned | 226 | 244 |
+| the same 16 bytes as four word loads | 63 | 63 |
+
+`memcmp` compares words only when both pointers are word-aligned, so a
+hot loop that compares short keys (a cache of tiles, say) is faster
+with its own compare: copy each side into four `uint32_t` with
+`memcpy` and compare those, as `lib/nescv`'s `NESCV_FAST_KEYS` does.
+The M33 reads a word from any address, so this works for keys that
+aren't aligned too.
 
 If you write a counter of your own: Unicorn needs its ARMv8 model
 (`UC_CPU_ARM_MAX`) or the M33's `vsel` faults, and after adding or

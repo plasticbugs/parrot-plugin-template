@@ -7,7 +7,10 @@
 # plugin's own optimisation goes after --, the same as in its
 # CMakeLists.txt (-O2 by default; -O3 -fno-data-sections for an
 # emulator's files means building those apart: see porting.md). The SDK's
-# folder and the kit's lib/ are on the include path.
+# folder and the kit's lib/ are on the include path. It links the same C
+# library as a plugin, the pico-sdk's: newlib in full (nosys.specs), not
+# newlib-nano, whose memset and memcmp go a byte at a time and would make
+# a plugin look slower than it is.
 set -e
 here=$(cd "$(dirname "$0")" && pwd)
 kit=$(cd "$here/../.." && pwd)
@@ -21,4 +24,4 @@ while [ $# -gt 0 ] && [ "$1" != -- ]; do files="$files $1"; shift; done
 # shellcheck disable=SC2086
 arm-none-eabi-gcc -mcpu=cortex-m33 -mthumb -march=armv8-m.main+fp+dsp -mfloat-abi=softfp \
     -O2 -std=c11 -ffunction-sections -fdata-sections -I"$sdk" -I"$kit/lib" "$@" \
-    $files -nostartfiles -T "$here/bench.ld" --specs=nano.specs -Wl,--gc-sections -lm -o "$out"
+    $files -nostartfiles -T "$here/bench.ld" --specs=nosys.specs -Wl,--gc-sections -lm -o "$out"

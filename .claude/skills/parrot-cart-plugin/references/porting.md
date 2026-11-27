@@ -546,9 +546,11 @@ The picture is usually the biggest cost, more than the CPUs:
   cycles on it, and a picture that needs more (the whole screen changes
   between waves) carries on at the next list from that frame's lines. It
   comes a few frames late, and no list is late.
-- On the M33 a 64-bit divide costs about 100 cycles, and newlib's
-  `memcmp` and `memset` are slow for short runs. Keep them out of hot
-  loops.
+- On the M33 a 64-bit divide costs about 100 cycles. newlib's `memset`
+  is quick (4 KB in 2,400 cycles), but `memcmp` of 16 bytes takes 100
+  cycles, or 226 when a pointer isn't word-aligned. For short keys in a
+  hot loop, compare four `uint32_t` loaded with `memcpy` (63 cycles), as
+  `lib/nescv` does (`docs/testing.md`, "Fast enough on the cart").
 - A delay loop in the game's code (Robotron's sound ROM spends a third
   of its time in `DECA` / `BNE`) can run all but its last turn at once,
   which leaves the board as running each instruction would. Check that
