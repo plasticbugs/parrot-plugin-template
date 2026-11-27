@@ -27,6 +27,8 @@ set -e
 kit=$(cd "$(dirname "$0")/.." && pwd)
 out=${TMPDIR:-/tmp}/parrotcart-test
 mkdir -p "$out"
+nl='
+'
 status=0
 have_mame=1
 [ -n "$NO_MAME" ] && have_mame=0
@@ -65,17 +67,13 @@ run_one() {
     # the build's options, a line each (so a value keeps its spaces), and no globbing until build.sh
     bopts=
     while [ $# -gt 1 ]; do
-        case "$1" in --src|--vendor|--include|--define) bopts="$bopts$1
-$2
-"; shift 2 ;; *) break ;; esac
+        case "$1" in --src|--vendor|--include|--define) bopts="$bopts$1$nl$2$nl"; shift 2 ;; *) break ;; esac
     done
     [ -d "$dir" ] || { echo "  (not here: $dir)"; return 0; }
-    set -f; IFS='
-'
+    set -f; IFS=$nl
     # shellcheck disable=SC2086
     if ! "$kit/test/host/build.sh" "$dir" "$o/run" $bopts 2>"$o/build.log"; then built=0; else built=1; fi
-    set +f; IFS=' 	
-'
+    set +f; IFS=' 	'"$nl"
     if [ $built = 0 ]; then
         echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1
         unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END PC_BACK_TO_BACK; return 0
