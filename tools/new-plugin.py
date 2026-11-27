@@ -65,6 +65,7 @@ ICONS = {
     "smile": ["........", ".##..##.", ".##..##.", "........", "#......#", ".#....#.", "..####..", "........"],
     "blank": ["........"] * 8,
 }
+SAVE_EXT = ".sav"          # --save-beside: the save's extension, in place of the opened file's
 FILE_ICON = ["#####...", "#...##..", "#....##.", "#.....#.", "#.....#.", "#.....#.", "#######.", "........"]
 
 # Licenses whose full text the tool writes, from tools/licenses/: the GNU
@@ -280,6 +281,8 @@ class Plugin:
         self.save_file = stem + ".SAV"
         self.save_folder = self.home or "/PLUGINS"
         self.save_magic = (stem[:7] + "_" * 7)[:7] + "1"
+        # --save-beside: each opened file's save next to it ("Level 1.swp" -> "Level 1.sav")
+        self.save_beside = bool(getattr(a, "save_beside", False))
         self.note_name = self.name[:12].rstrip()              # "Name: 4294967295 presses" fits the menu's 32
 
     def has(self, *keys):
@@ -655,6 +658,7 @@ static void psram_start(void) {
 //@if saves
 
 // ---- the save file ----------------------------------------------------------------------
+//@if !beside
 // SAVE_FILE in SAVE_FOLDER, 512 bytes, found or made at the start, and the
 // folder made too if it isn't there. Its layout is yours. Keep SAVE_MAGIC at
 // its start, and change its last character when the layout changes, so a
@@ -662,6 +666,18 @@ static void psram_start(void) {
 // and save_on_exit() writes the last changes on the way back to the menu.
 #define SAVE_FOLDER "@SAVE_FOLDER@"
 #define SAVE_FILE   "@SAVE_FILE@"
+//@end
+//@if beside
+// Each file the plugin opens has its own save, next to it, with its name
+// and SAVE_EXT: "/GAMES/Level 1@OPEN_EXT@" saves to "/GAMES/Level 1@SAVE_EXT@", the
+// way an emulator keeps a game's save beside the game. 512 bytes, found or
+// made at the start. Started without a file, it has no save. Its layout is
+// yours. Keep SAVE_MAGIC at its start, and change its last character when
+// the layout changes, so a new release can tell an old save. Save as things
+// change (save_write()), and save_on_exit() writes the last changes on the
+// way back to the menu.
+#define SAVE_EXT    "@SAVE_EXT@"
+//@end
 #define SAVE_MAGIC  "@SAVE_MAGIC@"
 typedef struct {
     char magic[8];
@@ -693,6 +709,7 @@ static void save_on_exit(void) {
     save_write();
 }
 
+//@if !beside
 // A folder such as "/GAMES/MINE", one level at a time: found, or made with
 // fs_mkdir() if it isn't there. FS_OK, or why not.
 static int make_folder(const char *path) {
@@ -714,6 +731,42 @@ static int make_folder(const char *path) {
     }
     return FS_OK;
 }
+//@end
+//@if beside
+// The save's folder and name for the launch block's file: its folder, and
+// its full name (fs_name16(), which keeps the letters outside ASCII that
+// the path has as ?) with SAVE_EXT in place of its extension. Its length,
+// or 0 when there is no file or the name won't do.
+static uint16_t save_name[FS_LNAME];
+static char save_folder[sizeof ((cvl_t *)0)->path];
+static int save_name_for(const cvl_t *b) {
+    if (!b || !b->path[0]) return 0;
+    const char *slash = strrchr(b->path, '/');
+    const size_t d = slash ? (size_t)(slash - b->path) : 0;
+    snprintf(save_folder, sizeof save_folder, "%.*s", (int)d, b->path);     // "" is the top
+    const char *path_name = slash ? slash + 1 : b->path;
+    int n = b->file_clus ? fs_name16(&fs, save_folder[0] ? save_folder : "/", b->file_clus, save_name, FS_LNAME - 1) : -1;
+    if (n <= 0)                                         // (an empty file has no cluster to find it by)
+        for (n = 0; path_name[n] && n < FS_LNAME - 1; n++) save_name[n] = (uint8_t)path_name[n];
+    int stem = n;
+    for (int i = n - 1; i > 0; i--)
+        if (save_name[i] == '.') {
+            stem = i;
+            break;
+        }
+    // not the file itself (OPENS with SAVE_EXT in it), and room for the extension
+    const int ext = (int)strlen(SAVE_EXT);
+    if (n - stem == ext) {
+        bool same = true;
+        for (int i = 0; i < ext; i++)
+            if ((save_name[stem + i] | 0x20) != (SAVE_EXT[i] | 0x20)) same = false;
+        if (same) return 0;
+    }
+    if (stem + ext > FS_LNAME - 1) return 0;
+    for (int i = 0; i < ext; i++) save_name[stem + i] = (uint8_t)SAVE_EXT[i];
+    return stem + ext;
+}
+//@end
 
 // Once, at the start: the card's start takes a second or so, with the
 // screen standing still.
@@ -727,6 +780,7 @@ static void save_start(void) {
         why = "NO FAT OR EXFAT ON THE CARD";
     } else {
         fs_set_writer(&fs, cvsd_write);                     // without this the card is read-only
+//@if !beside
         uint16_t name[16];                                  // the file system takes names as UTF-16
         int n = 0;
         for (; SAVE_FILE[n]; n++) name[n] = (uint8_t)SAVE_FILE[n];
@@ -735,6 +789,20 @@ static void save_start(void) {
             why = "NO FOLDER " SAVE_FOLDER;
         } else if (fs_create(&fs, SAVE_FOLDER, name, n, 512, &save_f, &made) != FS_OK ||   // found, or made with its size
                    fs_open(&fs, &save_f) != FS_OK) {
+//@end
+//@if beside
+//@if text
+        const int n = save_name_for(cvk_launch());          // the file it was opened with
+//@end
+//@if frames
+        const int n = save_name_for(cvf_launch());          // the file it was opened with
+//@end
+        bool made;
+        if (!n) {
+            why = "NO FILE, SO NO SAVE";
+        } else if (fs_create(&fs, save_folder[0] ? save_folder : "/", save_name, n, 512, &save_f, &made) != FS_OK ||
+                   fs_open(&fs, &save_f) != FS_OK) {          // found, or made with its size
+//@end
             why = "THE SAVE WON'T OPEN";
         } else {
             memcpy(save.magic, SAVE_MAGIC, 8);
@@ -747,7 +815,12 @@ static void save_start(void) {
         }
     }
     if (why) say(ROW_SAVE, C_LRED, "SAVE: %s", why);
+//@if !beside
     else say(ROW_SAVE, C_WHITE, "SAVE: RUN %lu, %s", (unsigned long)save.runs, SAVE_FILE);
+//@end
+//@if beside
+    else say(ROW_SAVE, C_WHITE, "SAVE: RUN %lu, BESIDE THE FILE", (unsigned long)save.runs);
+//@end
 }
 //@end
 //@if opens
@@ -1114,6 +1187,8 @@ def main_c(p):
         flags.add("controller2")
     if p.opens:
         flags.add("opens")
+    if p.save_beside:
+        flags.add("beside")
     if p.has(*USB_FEATURES):
         flags.add("usb")
     if p.has(*HOST_FEATURES) and p.has("midi-out"):
@@ -1156,6 +1231,8 @@ def main_c(p):
         "ON_EXIT": "cvf_on_exit" if p.screen == "frames" else "cvk_on_exit",
         "SAVE_FILE": p.save_file,
         "SAVE_MAGIC": p.save_magic,
+        "SAVE_EXT": SAVE_EXT,
+        "OPEN_EXT": p.opens[0] if p.opens else "",
         "STEP_HEADER": ("// ---- the step: " + ("50 times a second " if p.screen == "text" else "every TV frame ")).ljust(92, "-"),
         "USB_START": start,
         "OPENS_TEXT": " ".join(p.opens),
@@ -1249,7 +1326,11 @@ def readme(p):
         if p.has(*HOST_FEATURES):
             needs.append("The USB port works with either a computer or a hub. If no computer connects within "
                          "a second and a half, the cart uses the hub instead.")
-    if p.has("saves"):
+    if p.has("saves") and p.save_beside:
+        first = p.opens[0]
+        needs.append(f"Each file it opens has its own save next to it, with the file's name and `{SAVE_EXT}` "
+                     f"(`Level 1{first}` saves to `Level 1{SAVE_EXT}`). Started without a file, it saves nothing.")
+    elif p.has("saves"):
         if p.home:
             needs.append(f"Saves go in `{p.home}/{p.save_file}`. {md(p.name)} makes the folder `{p.home}` if it isn't there.")
         else:
@@ -1373,6 +1454,20 @@ SAVE_NOTE = ["    # The save src/main.c writes as it comes: SAVE_FILE in SAVE_FO
              "    # save= and magic=, or check your own file in place of the last line."]
 
 
+def save_note(p):
+    if not p.save_beside:
+        return SAVE_NOTE
+    return [SAVE_NOTE[0].replace("SAVE_FILE in SAVE_FOLDER", "next to the file it opened"),
+            SAVE_NOTE[1], SAVE_NOTE[2], SAVE_NOTE[3]]
+
+
+def save_test(p):
+    """the card tests' save, and (--save-beside) the file each run opens"""
+    if p.save_beside:
+        return "/A first file" + SAVE_EXT, "/A first file.txt"   # (the models don't look at the extension)
+    return p.save_folder + "/" + p.save_file, None
+
+
 def test_block(p):
     """test/run.sh's part for the plugin"""
     t = p.test
@@ -1382,12 +1477,14 @@ def test_block(p):
                 f'    PC_END={ms} PC_SCRIPT="{script}" \\',
                 f'        run {name} "$kit/src" ' + " ".join(shq(w) for w in want), "fi"]
     if p.has("saves"):
-        out += [f"if wanted {t}-card; then"] + SAVE_NOTE + [
-                f"    save={shq(p.save_folder + '/' + p.save_file)} magic={p.save_magic}",
+        save, opened = save_test(p)
+        out += [f"if wanted {t}-card; then"] + save_note(p) + [
+                f"    save={shq(save)} magic={p.save_magic}",
                 f"    PC_END=1500 run {t}-nocard \"$kit/src\" 'back to the menu'",
-                "    card \"MS-DOS FAT32:MBRSPUD:fat32\"" + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
+                "    card \"MS-DOS FAT32:MBRSPUD:fat32\"" + (f"     # (no {p.home}: the plugin makes it)" if p.home and not opened else ""),
                 "    for n in 1 2; do",
-                f"        PC_CARD=$out/card-fat32.cdr PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu' \"on_exit's function\"",
+                "        PC_CARD=$out/card-fat32.cdr " + (f"PC_OPEN={shq(opened)} " if opened else "") +
+                f"PC_END=2500 run \"{t}-card-$n\" \"$kit/src\" 'back to the menu' \"on_exit's function\"",
                 "    done",
                 '    card_check fat32 "MS-DOS FAT32" 2 "$save" "$magic"',
                 "fi"]
@@ -1413,13 +1510,15 @@ def sim_test_block(p):
                 f'    run {name} "$kit/src" --ms {ms} --script "{script}"',
                 "    expect " + " ".join(shq(w) for w in want), "fi"]
     if p.has("saves"):
-        out += [f"if wanted {t}-card; then"] + SAVE_NOTE + [
-                f"    save={shq(p.save_folder + '/' + p.save_file)} magic={p.save_magic}",
+        save, opened = save_test(p)
+        out += [f"if wanted {t}-card; then"] + save_note(p) + [
+                f"    save={shq(save)} magic={p.save_magic}",
                 f"    run {t}-nocard \"$kit/src\" --ms 1500",
                 "    expect 'back to the menu'",
-                '    tree "$out/card"' + (f"     # (no {p.home}: the plugin makes it)" if p.home else ""),
+                '    tree "$out/card"' + (f"     # (no {p.home}: the plugin makes it)" if p.home and not opened else ""),
                 "    for n in 1 2; do",
-                f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" --ms 2500",
+                f"        run \"{t}-card-folder-$n\" \"$kit/src\" --card \"$out/card\" " +
+                (f"--open {shq(opened)} " if opened else "") + "--ms 2500",
                 "        expect 'back to the menu' \"on_exit's function\"",
                 "    done",
                 '    save_check "$out/card$save" "$magic" 2',
@@ -1619,6 +1718,9 @@ def interview(a):
                  ", like /SWEEPER, or none", lambda s: "" if s.strip().lower() == "none" else check_home(s), a.home or "none")
     a.opens = ask("File types the menu opens with it (it reads them from the card), like .swp .lvl, or none",
                   lambda s: [] if s.strip().lower() == "none" else check_opens(s), " ".join(a.opens) if a.opens else "none")
+    if "saves" in a.features and a.opens and a.save_beside is None:
+        a.save_beside = ask(f"Keep each file's save next to it (Level 1{a.opens[0]}: Level 1{SAVE_EXT}), as an "
+                            "emulator does, rather than one save for the plugin? y/n", one_of("y", "n"), "n") == "y"
     print("\nChoose an icon (8x8, docs/icons.md):")
     print("  " + "  ".join(f"{i} {k:8}" for i, k in enumerate(ICONS, 1)))
     for r in range(8):
@@ -1706,6 +1808,10 @@ def main():
     ap.add_argument("--opens", default="",
                     help="file types the menu opens with it, like '.swp .lvl'. It turns on CARD, and src/main.c "
                          "opens the file and shows its name and size (default: none)")
+    ap.add_argument("--save-beside", action="store_true", default=None,
+                    help="with saves and --opens: each file it opens gets its own save next to it, with the file's "
+                         f"name and {SAVE_EXT} (Level 1.swp: Level 1{SAVE_EXT}), as an emulator keeps a game's save "
+                         "beside the game (default: one save, in --home or /PLUGINS)")
     ap.add_argument("--icon", help="an icon's name, or a file (default: one that suits the features)")
     ap.add_argument("--license", default="MIT",
                     help="an SPDX ID for your code (default MIT). The full text is built in for " + ", ".join(LICENSES) +
@@ -1733,6 +1839,9 @@ def main():
             a.file = check_file(a.file)
         if a.controller2 and a.screen != "frames":
             raise Bad("--controller2 needs --screen frames (the screen kernel reads controller 1 only)")
+        if a.save_beside and not ("saves" in a.features and a.opens):
+            raise Bad("--save-beside needs saves in --features and a file type in --opens: the save goes next to "
+                      "the file it opens")
         if a.name is None:
             if not sys.stdin.isatty():
                 ap.error("give --name and --by, or run it in a terminal to answer questions")

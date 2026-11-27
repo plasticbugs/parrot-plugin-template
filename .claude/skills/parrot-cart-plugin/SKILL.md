@@ -92,6 +92,10 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   plugin was started with and shows its name and size. If the plugin can
   also start without a file, add `USES standalone` to `cvcart_plugin()`,
   and the menu lists it with the apps (`docs/plugin-rules.md`).
+- Saves go in one file, `HOME/FILE.SAV` (or `/PLUGINS/FILE.SAV`). For an
+  emulator or a level editor, where each opened file wants its own save,
+  add `--save-beside` (with `--opens` and `saves`): `Level 1.swp` saves
+  to `Level 1.sav` in the same folder, as emulators do.
 - `--license` takes an SPDX ID (default MIT). An emulator core usually
   decides this, so check the core's license first.
 - Its tests in `test/run.sh` and `sim/test.sh` only check what holds for

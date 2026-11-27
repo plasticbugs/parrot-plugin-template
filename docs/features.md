@@ -209,6 +209,11 @@ started the plugin with. A plugin made by `tools/new-plugin.py` keeps its
 save in its home folder (`HOME`), or in `/PLUGINS` next to the plugin if
 it has no home folder. Its `make_folder()` makes the home folder with
 `fs_mkdir()` (`fsro.h`) when it isn't on the card yet, a level at a time.
+With `--opens .ext --save-beside`, each file it opens gets its own save
+next to it instead, with the file's name and `.sav` (`Level 1.swp` saves
+to `Level 1.sav`), the way an emulator keeps a game's save beside the
+game. Its `save_name_for()` gets the name with `fs_name16()`, which keeps
+letters outside ASCII that the launch block's path has as `?`.
 With `--opens .ext`, `tools/new-plugin.py` turns `CARD` on even without
 saves, and its `src/main.c` opens the file the menu started it with and
 shows the file's name and size. That plugin writes nothing, so it doesn't
