@@ -312,7 +312,7 @@ them, so don't go looking for them when the kit already shows the way.
 | porting an arcade game: keys, ROM sets, high scores, the picture (vectors, palettes per line, 40 Hz games), matching MAME and its pitfalls, sound boards, speed | `references/porting.md`, "Arcade games" |
 | samples through the DAC, lists back to back, MAME's costs for the kernel | `references/porting.md`, "Lists back to back"; `examples/samples` |
 | RAM: what takes it, the stack, packing tables, build flags | `references/porting.md`, "Memory and the build" |
-| an arcade board's CPUs (Z80, 8035, 6809, 6800), the SP0250, MAME's scheduler, a dial, scaling to any size | `lib/README.md` |
+| an arcade board's CPUs (Z80, 8035, 6809, 6800), the SP0250, MAME's scheduler, a dial, scaling to any size, a tile machine's picture encoder (`nescv`) | `lib/README.md` |
 | how long the M33 takes over a list | `docs/testing.md`, "Fast enough on the cart" (`tools/armcount/`) |
 
 ## Release it and get it listed

@@ -16,12 +16,15 @@ their own terms:
 | `lib/sp0250/` | the SP0250 speech chip, from MAME 0.288's `src/devices/sound/sp0250.cpp` (Olivier Galibert), in C | BSD 3-Clause (`lib/sp0250/LICENSE`) |
 | `lib/m6809/` | the 6809, from MAME 0.288's `src/devices/cpu/m6809` (`m6809.cpp`, `m6809.h`, `m6809inl.h`, `base6x09.lst`, `m6809.lst`; Nathan Woods), in C | BSD 3-Clause (`lib/m6809/LICENSE`) |
 | `lib/m6800/` | the 6800, 6802 and 6808, from MAME 0.288's `src/devices/cpu/m6800` (`m6800.cpp`, `m6800.h`, `6800ops.hxx`; Aaron Giles), in C | BSD 3-Clause (`lib/m6800/LICENSE`) |
+| `lib/nescv/` | the NES plugin's picture encoder, from [parrot-plugin-nes](https://github.com/plasticbugs/parrot-plugin-nes) (dfd06f5, the Parrot Cart contributors), with the Neo Geo Pocket Color plugin's additions (a band over some columns, `NESCV_FAST_KEYS`, pixels that are colours already) | LGPL 2.1 (`lib/nescv/LICENSE`) |
 | `cmake/pico_sdk_import.cmake` | from the [Raspberry Pi Pico SDK](https://github.com/raspberrypi/pico-sdk) | BSD 3-Clause |
 | `tools/licenses/GPL-2.0.txt`, `GPL-3.0.txt`, `LGPL-2.1.txt` | the GNU licenses, as the [Free Software Foundation](https://www.gnu.org/licenses/) publishes them | verbatim copies, as each text allows |
 | `tools/licenses/Apache-2.0.txt` | the Apache License 2.0, as the [Apache Software Foundation](https://www.apache.org/licenses/) publishes it | verbatim copy |
 
 A plugin built with one of `lib/`'s MAME cores contains MAME's code, so
-credit MAME and the core's copyright holders in its README. A built
+credit MAME and the core's copyright holders in its README. A plugin
+built with `lib/nescv/` contains LGPL code: credit it, and link to the
+plugin's source as `docs/release-checklist.md` says. A built
 plugin also contains the Raspberry Pi Pico SDK's runtime (BSD
 3-Clause) and, if it uses USB, TinyUSB (MIT). Say so in your plugin's
 credits (`docs/release-checklist.md`). A plugin written in Lua (`docs/lua.md`)

@@ -16,6 +16,7 @@ to the plugin's sources, or include it where its README says.
 | `sp0250/` | the GI SP0250 speech chip | BSD 3-Clause (MAME) |
 | `m6809/` | the 6809 | BSD 3-Clause (MAME) |
 | `m6800/` | the 6800, 6802 and 6808 | BSD 3-Clause (MAME) |
+| `nescv/` | a frame plugin's picture encoder: an emulator's picture as the frame kernel's lists, a band at a time | LGPL 2.1 (the NES plugin) |
 
 The MAME cores came from the cart's arcade plugins (Time Pilot, Star
 Trek, Donkey Kong Jr., Robotron). Each was checked by building its
@@ -24,6 +25,9 @@ instruction, and each README says how. They are templates: the board's
 `.c` file sets the CPU's connections (memory, ports, waits) as macros
 and includes the core, so they run inline. Build that file with `-O3
 -fno-data-sections` (`references/porting.md`, "Memory and the build").
+
+`nescv/` came from the NES plugin, and the Neo Geo Pocket Color plugin
+runs on it too. Its README says how it was checked.
 
 A plugin that uses one keeps its license with it: the folder's `LICENSE`
 and a credit in the plugin's README.

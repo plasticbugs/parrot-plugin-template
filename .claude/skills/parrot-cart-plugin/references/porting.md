@@ -4,7 +4,7 @@ The published plugins are worked examples, each with its full source:
 
 | Plugin | Repository | Core | What to look at |
 |---|---|---|---|
-| NES | `parrot-plugin-nes` | QuickNES (LGPL-2.1) | `src/nescv.c`, the picture encoder the others reuse, and `nesapu.h` for sound |
+| NES | `parrot-plugin-nes` | QuickNES (LGPL-2.1) | `src/nescv.c`, the picture encoder the others reuse (now in the kit as `lib/nescv`), and `nesapu.h` for sound |
 | Game Boy | `parrot-plugin-gameboy` | Peanut-GB (MIT) | saves written in `cvf_on_exit()`, a speed-up that skips the game's wait loops |
 | Master System, Game Gear | `parrot-plugin-sms-gamegear` | SMS Plus (GPL) | another machine on `nescv` |
 | PC Engine | `parrot-plugin-pcengine` | PCE-GO (GPL-2.0) | a picture bigger than the TV: view keys and squeezing |
@@ -145,8 +145,11 @@ picture.
   Engine do, cut the picture along its tile grid. Most cells repeat, so
   each third of the screen keeps a cache of 256 cell patterns and a
   picture costs 16 bytes for each new cell plus the names that change.
-  `nescv.c` does this with double-buffered name tables, so a picture is
-  never shown half drawn.
+  The kit's `lib/nescv` does this with double-buffered name tables, so a
+  picture is never shown half drawn. Feed it a band of 8 lines at a time
+  as the emulator draws, or only the columns that changed
+  (`nescv_band_cols()`), and build it with `NESCV_FAST_KEYS`. It's LGPL
+  2.1, so a plugin that uses it credits it and links to its source.
 - **Height**: games draw 224 to 288 lines and the TV shows 192. Scaling
   the whole picture by 3/4 often fits it with nothing cut off, and the
   SDK does it: `cvscale34()` in `cvscale.h`, built into every frame
