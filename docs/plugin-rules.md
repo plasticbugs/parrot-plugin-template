@@ -23,7 +23,9 @@ cvcart_plugin(target ID developer.pluginname NAME "As The Menu Shows It" VERSION
 - The part before the first dot is your developer name. Use the same one
   for all your plugins, and pick one that nobody else uses. IDs that
   start with `parrotcart.` are for the plugins we make, so please pick
-  your own prefix, like your name or GitHub username.
+  your own prefix, like your name or GitHub username. The release check
+  warns about a `parrotcart.` ID unless it's run with `--owner` (or
+  `PARROTCART_OWNER=1`), which is for our own plugins only.
 - The name (`NAME`, up to 32 characters) can change between versions.
   When two plugins have the same name, the menu shows the developer's
   name (`BY`, up to 32 characters) next to it.

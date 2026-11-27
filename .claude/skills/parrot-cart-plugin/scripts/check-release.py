@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""check-release.py [PLUGIN_DIR] [--cvp FILE.CVP] -- is this plugin ready to
-release and list on the Parrot Cart plugins site?
+"""check-release.py [PLUGIN_DIR] [--cvp FILE.CVP] [--owner] -- is this plugin
+ready to release and list on the Parrot Cart plugins site?
 
 Run it in the plugin's folder (a copy of the starter kit). It reads
 CMakeLists.txt's cvcart_plugin() line, README.md, the license files, the
@@ -9,6 +9,10 @@ games, ROMs and BIOS images, which must never be in a plugin's repository.
 It also checks the timing: a frame plugin's lists served by the two-sample
 bus loop, and no change to the 150 MHz clock that loop is timed for. With
 --cvp it also checks a built .CVP against CMakeLists.txt.
+
+An ID that starts with parrotcart. is a warning: that prefix is for the
+Parrot Cart's own plugins. Those pass with --owner, or with
+PARROTCART_OWNER=1 in the environment.
 
 Each line is "ok", "warn" (worth fixing) or "FAIL" (fix it before the
 release). It exits 1 if anything failed. Python 3.8 or newer, standard
@@ -70,7 +74,7 @@ def version_tuple(v):
     return tuple(int(x) for x in m.groups()) if m else None
 
 
-def check_cmake(root):
+def check_cmake(root, owner=False):
     p = os.path.join(root, "CMakeLists.txt")
     if not os.path.exists(p):
         fail("no CMakeLists.txt: run this in the plugin's folder")
@@ -85,6 +89,8 @@ def check_cmake(root):
         fail(f"ID {pid!r}: it's developer.pluginname, lower case, digits, . - _, up to 32 characters")
     elif pid.startswith("yourname.") or pid == "yourname.hello":
         fail(f"ID {pid}: still the template's. Use your own developer name, for good (docs/plugin-rules.md)")
+    elif pid.startswith("parrotcart.") and owner:
+        ok(f"ID {pid} (one of the cart's own: --owner)")
     elif pid.startswith("parrotcart."):
         warn(f"ID {pid}: parrotcart. is for the cart's own plugins. Use your own developer name")
     else:
@@ -372,9 +378,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("dir", nargs="?", default=".")
     ap.add_argument("--cvp", help="a built .CVP to check against CMakeLists.txt")
+    ap.add_argument("--owner", action="store_true",
+                    help="one of the Parrot Cart's own plugins: a parrotcart. ID passes (or PARROTCART_OWNER=1)")
     a = ap.parse_args()
+    owner = a.owner or os.environ.get("PARROTCART_OWNER", "") not in ("", "0")
     root = os.path.abspath(a.dir)
-    f, _ = check_cmake(root)
+    f, _ = check_cmake(root, owner)
     if f and f.get("VERSION"):
         check_tags(root, f["VERSION"])
     check_readme(root)
