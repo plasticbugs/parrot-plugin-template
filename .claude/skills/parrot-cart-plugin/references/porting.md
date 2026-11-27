@@ -589,6 +589,9 @@ code included, runs from the 507 KB of SRAM, and `.bss` must end below
 - Build the core with `-O2` or `-O3`, and its vendored code with its
   warnings off. Keep the core in `vendor/` with a `VENDORED.md` that lists
   your changes.
+- `lib/z80` is about 100 KB at `-O3`. `-DZ80_COMPACT` takes 15 KB off
+  for 2% of its speed, and `-DZ80_COMPACT=2` takes 34 KB off for a
+  third (`lib/z80/README.md`).
 - If it doesn't fit below `0x2007EC00`, try `-Os` for cold code first.
   `XIP` (run from flash) is the last step, and the code that talks to the
   console still has to be in RAM (`cvxip.h`).

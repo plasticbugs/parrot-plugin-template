@@ -110,6 +110,7 @@ Inline, with no sync. These must not call the cycle functions:
 | `Z80_WR_PAGED(cpu, a)` | 1 | 0 sends this write to `Z80_WR` though its page is set |
 | `Z80_M1_CYCLES`, `Z80_MREQ_CYCLES`, `Z80_IORQ_CYCLES` | 4, 3, 4 | `z80_set_m1_cycles` and the rest |
 | `Z80_OPCODES` | off | opcode fetches read `z80_op_page` (MAME's `AS_OPCODES`, for decrypted opcodes) |
+| `Z80_COMPACT` | 0 | 1 or 2: a smaller, slower core ("Cost on the cart") |
 
 The waits work like MAME's taps that call `adjust_icount(-n)`: they are
 taken after the access. A wait that is 0 at compile time costs nothing.
@@ -258,6 +259,29 @@ plugins' cores: 889,776 cycles a list against 893,403 in Time Pilot.
 The core is about 112 KB of code at -O3, in RAM on the cart. Time Pilot's
 own was 110.8 KB, and the extra comes from the synced acknowledge and the
 handler table.
+
+### A smaller core
+
+A plugin short of RAM (a Z80 next to a bigger emulator, as in the Neo
+Geo Pocket Color) can build the core with `Z80_COMPACT`. The helpers
+that every instruction inlines are called instead. It runs the same
+instructions in the same cycles, so the smoke test and a board's MAME
+comparison still hold; only the cart's time changes.
+
+| Build | The core alone | Time for 60,000 Z80 cycles |
+|---|---|---|
+| as it is | 104,836 bytes | 3.80 ms |
+| `-DZ80_COMPACT` (1): the ALU, shifts, BIT, INC and DEC called | 90,060 bytes | 3.89 ms (2% slower) |
+| `-DZ80_COMPACT=2`: the memory and I/O accessors too | 70,616 bytes | 5.09 ms (34% slower) |
+
+The sizes are the core with one CPU and four handlers, at `-O3
+-fno-data-sections` for the M33. The times are armcount's
+(`tools/armcount`) for a loop of loads, ALU work, CB shifts, OUT, CALL,
+RET, DJNZ and LDIR, all in pages, 60 lists. Level 1 is nearly free.
+Level 2 costs a third more on every memory access, so try it only when
+the RAM can't be found anywhere else.
+
+`lib/test.sh` runs the smoke test at all three levels.
 
 ## How it was proven
 

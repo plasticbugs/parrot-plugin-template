@@ -12,10 +12,11 @@
 //
 // A template: the board's .c file defines Z80_CPUS and its connections and
 // includes this (z80.h, README.md). Its Z80s share this code (100 KB on
-// the cart: its RAM holds one). The one running has its registers in Z;
-// each of the others has them in z_saved, and z80_run swaps them as a
-// slice starts (a straight copy of words, cheaper than reaching the
-// registers through a pointer, which costs every instruction).
+// the cart: its RAM holds one; Z80_COMPACT makes it smaller). The one
+// running has its registers in Z; each of the others has them in z_saved,
+// and z80_run swaps them as a slice starts (a straight copy of words,
+// cheaper than reaching the registers through a pointer, which costs every
+// instruction).
 // (Built alone, without Z80_CPUS, this file is empty.)
 #ifdef Z80_CPUS
 #include "z80.h"
@@ -97,6 +98,24 @@ typedef int8_t s8;
 #define Z80_HOT
 #endif
 #define Z80_INLINE static inline __attribute__((always_inline))
+// Z80_COMPACT: a smaller core, for a plugin short of RAM, at some cost in
+// speed (README.md, "Cost on the cart"). 1 (-DZ80_COMPACT): the flag
+// helpers (the ALU, shifts, BIT, INC and DEC) are called instead of
+// inlined at every instruction. 2: the memory and I/O accessors too. The
+// core does the same either way, cycle for cycle.
+#ifndef Z80_COMPACT
+#define Z80_COMPACT 0
+#endif
+#if Z80_COMPACT >= 1
+#define Z80_ALU static __attribute__((noinline)) Z80_HOT
+#else
+#define Z80_ALU Z80_INLINE
+#endif
+#if Z80_COMPACT >= 2
+#define Z80_MEM static __attribute__((noinline)) Z80_HOT
+#else
+#define Z80_MEM Z80_INLINE
+#endif
 
 typedef union { struct { u8 l, h; } b; u16 w; } pair16_t;
 
@@ -246,7 +265,7 @@ Z80_INLINE u8 z80i_flag_pv(u8 val) {
 // in Z.icount, and a change it makes there is taken back)
 #define SYNC_CALL(x) do { Z.icount = *ic; x; *ic = Z.icount; } while (0)
 
-Z80_INLINE u8 z80i_rd(int *ic, const u8 *const *rdp, int cpu, u16 a) {
+Z80_MEM u8 z80i_rd(int *ic, const u8 *const *rdp, int cpu, u16 a) {
 	(void)cpu;
 	u8 v;
 	const u8 *p = rdp[a >> 8];
@@ -256,7 +275,7 @@ Z80_INLINE u8 z80i_rd(int *ic, const u8 *const *rdp, int cpu, u16 a) {
 	return v;
 }
 // an M1 fetch: the opcode space's page (or handler), its wait, the board's look at it
-Z80_INLINE u8 z80i_rd_op(int *ic, const u8 *const *opp, int cpu, u16 a) {
+Z80_MEM u8 z80i_rd_op(int *ic, const u8 *const *opp, int cpu, u16 a) {
 	(void)cpu;
 	u8 v;
 	const u8 *p = opp[a >> 8];
@@ -271,26 +290,26 @@ Z80_INLINE u8 z80i_rd_op(int *ic, const u8 *const *opp, int cpu, u16 a) {
 	Z80_OPCODE(cpu, a, v);
 	return v;
 }
-Z80_INLINE void z80i_wr(int *ic, u8 *const *wrp, int cpu, u16 a, u8 v) {
+Z80_MEM void z80i_wr(int *ic, u8 *const *wrp, int cpu, u16 a, u8 v) {
 	(void)cpu;
 	u8 *p = wrp[a >> 8];
 	if (__builtin_expect(p != 0 && (Z80_WR_PAGED(cpu, a)), 1)) p[a & 0xff] = v;
 	else SYNC_CALL(Z80_WR(cpu, a, v));
 	*ic -= Z80_WR_WAIT(cpu, a);
 }
-Z80_INLINE u8 z80i_io_in(int *ic, int cpu, u16 port) {
+Z80_MEM u8 z80i_io_in(int *ic, int cpu, u16 port) {
 	(void)cpu;
 	u8 v;
 	SYNC_CALL(v = (u8)(Z80_IN(cpu, port)));
 	*ic -= Z80_IN_WAIT(cpu, port);
 	return v;
 }
-Z80_INLINE void z80i_io_out(int *ic, int cpu, u16 port, u8 v) {
+Z80_MEM void z80i_io_out(int *ic, int cpu, u16 port, u8 v) {
 	(void)cpu;
 	SYNC_CALL(Z80_OUT(cpu, port, v));
 	*ic -= Z80_OUT_WAIT(cpu, port);
 }
-Z80_INLINE int z80i_irq_vector(int *ic, int cpu) {
+Z80_MEM int z80i_irq_vector(int *ic, int cpu) {
 	(void)cpu;
 	int v;
 	SYNC_CALL(v = (int)(Z80_IRQ_VECTOR(cpu)));
@@ -377,7 +396,7 @@ Z80_INLINE void z80i_leave_halt(void) {
 	}
 }
 
-Z80_INLINE void z80i_inc(u8 *r) {
+Z80_ALU void z80i_inc(u8 *r) {
 	++*r;
 	QT = 0;
 	// keep C
@@ -387,7 +406,7 @@ Z80_INLINE void z80i_inc(u8 *r) {
 	Z.f.n = 0;
 }
 
-Z80_INLINE void z80i_dec(u8 *r) {
+Z80_ALU void z80i_dec(u8 *r) {
 	--*r;
 	QT = 0;
 	// keep C
@@ -397,7 +416,7 @@ Z80_INLINE void z80i_dec(u8 *r) {
 	Z.f.n = 1;
 }
 
-Z80_INLINE void z80i_rlca(void) {
+Z80_ALU void z80i_rlca(void) {
 	A = (A << 1) | (A >> 7);
 	QT = 0;
 	// keep SZP
@@ -406,7 +425,7 @@ Z80_INLINE void z80i_rlca(void) {
 	Z.f.c = A & 0x01;
 }
 
-Z80_INLINE void z80i_rrca(void) {
+Z80_ALU void z80i_rrca(void) {
 	const u8 a0 = A;
 	A = (a0 >> 1) | (a0 << 7);
 	QT = 0;
@@ -416,7 +435,7 @@ Z80_INLINE void z80i_rrca(void) {
 	Z.f.c = a0 & 0x01;
 }
 
-Z80_INLINE void z80i_rla(void) {
+Z80_ALU void z80i_rla(void) {
 	u8 res = (A << 1) + Z.f.c;
 	QT = 0;
 	// keep SZP
@@ -426,7 +445,7 @@ Z80_INLINE void z80i_rla(void) {
 	A = res;
 }
 
-Z80_INLINE void z80i_rra(void) {
+Z80_ALU void z80i_rra(void) {
 	u8 res = (Z.f.c << 7) | (A >> 1);
 	QT = 0;
 	// keep SZP
@@ -436,7 +455,7 @@ Z80_INLINE void z80i_rra(void) {
 	A = res;
 }
 
-Z80_INLINE void z80i_add_a(u8 value) {
+Z80_ALU void z80i_add_a(u8 value) {
 	const u16 res = A + value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.yx_val = (u8)res;
@@ -447,7 +466,7 @@ Z80_INLINE void z80i_add_a(u8 value) {
 	A = (u8)res;
 }
 
-Z80_INLINE void z80i_adc_a(u8 value) {
+Z80_ALU void z80i_adc_a(u8 value) {
 	const int c = Z.f.c;
 	const u16 res = A + value + c;
 	QT = 0;
@@ -459,7 +478,7 @@ Z80_INLINE void z80i_adc_a(u8 value) {
 	A = (u8)res;
 }
 
-Z80_INLINE void z80i_sub_a(u8 value) {
+Z80_ALU void z80i_sub_a(u8 value) {
 	const u16 res = A - value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.yx_val = (u8)res;
@@ -470,7 +489,7 @@ Z80_INLINE void z80i_sub_a(u8 value) {
 	A = (u8)res;
 }
 
-Z80_INLINE void z80i_sbc_a(u8 value) {
+Z80_ALU void z80i_sbc_a(u8 value) {
 	const int c = Z.f.c;
 	const u16 res = A - value - c;
 	QT = 0;
@@ -482,13 +501,13 @@ Z80_INLINE void z80i_sbc_a(u8 value) {
 	A = (u8)res;
 }
 
-Z80_INLINE void z80i_neg(void) {
+Z80_ALU void z80i_neg(void) {
 	u8 value = A;
 	A = 0;
 	z80i_sub_a(value);
 }
 
-Z80_INLINE void z80i_daa(void) {
+Z80_ALU void z80i_daa(void) {
 	u8 a = A;
 	if (Z.f.n) {
 		if (F_H() || ((A & 0xf) > 9)) a -= 6;
@@ -505,7 +524,7 @@ Z80_INLINE void z80i_daa(void) {
 	A = a;
 }
 
-Z80_INLINE void z80i_and_a(u8 value) {
+Z80_ALU void z80i_and_a(u8 value) {
 	A &= value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = Z.f.yx_val = A;
@@ -513,21 +532,21 @@ Z80_INLINE void z80i_and_a(u8 value) {
 	Z.f.h_val = HF;
 }
 
-Z80_INLINE void z80i_or_a(u8 value) {
+Z80_ALU void z80i_or_a(u8 value) {
 	A |= value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = Z.f.yx_val = A;
 	Z.f.h_val = Z.f.n = Z.f.c = 0;
 }
 
-Z80_INLINE void z80i_xor_a(u8 value) {
+Z80_ALU void z80i_xor_a(u8 value) {
 	A ^= value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = Z.f.yx_val = A;
 	Z.f.h_val = Z.f.n = Z.f.c = 0;
 }
 
-Z80_INLINE void z80i_cp(u8 value) {
+Z80_ALU void z80i_cp(u8 value) {
 	const u16 res = A - value;
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = (u8)res;
@@ -551,16 +570,16 @@ Z80_INLINE void z80i_exx(void) {
 		Z.f.h_val = Z.f.n = 0;                                                   \
 		Z.f.c = (carry);                                                         \
 	} while (0)
-Z80_INLINE u8 z80i_rlc(u8 value) { const u8 res = ((value << 1) | (value >> 7)) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
-Z80_INLINE u8 z80i_rrc(u8 value) { const u8 res = ((value >> 1) | (value << 7)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
-Z80_INLINE u8 z80i_rl(u8 value) { const u8 res = ((value << 1) + Z.f.c) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
-Z80_INLINE u8 z80i_rr(u8 value) { const u8 res = ((value >> 1) | (Z.f.c << 7)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
-Z80_INLINE u8 z80i_sla(u8 value) { const u8 res = (value << 1) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
-Z80_INLINE u8 z80i_sra(u8 value) { const u8 res = ((value >> 1) | (value & 0x80)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
-Z80_INLINE u8 z80i_sll(u8 value) { const u8 res = ((value << 1) | 0x01) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
-Z80_INLINE u8 z80i_srl(u8 value) { const u8 res = (value >> 1) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
+Z80_ALU u8 z80i_rlc(u8 value) { const u8 res = ((value << 1) | (value >> 7)) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
+Z80_ALU u8 z80i_rrc(u8 value) { const u8 res = ((value >> 1) | (value << 7)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
+Z80_ALU u8 z80i_rl(u8 value) { const u8 res = ((value << 1) + Z.f.c) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
+Z80_ALU u8 z80i_rr(u8 value) { const u8 res = ((value >> 1) | (Z.f.c << 7)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
+Z80_ALU u8 z80i_sla(u8 value) { const u8 res = (value << 1) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
+Z80_ALU u8 z80i_sra(u8 value) { const u8 res = ((value >> 1) | (value & 0x80)) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
+Z80_ALU u8 z80i_sll(u8 value) { const u8 res = ((value << 1) | 0x01) & 0xff; SHIFT_FLAGS(res, value & 0x80); return res; }
+Z80_ALU u8 z80i_srl(u8 value) { const u8 res = (value >> 1) & 0xff; SHIFT_FLAGS(res, value & 0x01); return res; }
 
-Z80_INLINE void z80i_bit(int b, u8 value) {
+Z80_ALU void z80i_bit(int b, u8 value) {
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = value & (1 << b);
 	Z.f.h_val = HF;
@@ -568,7 +587,7 @@ Z80_INLINE void z80i_bit(int b, u8 value) {
 	Z.f.yx_val = value;
 }
 
-Z80_INLINE void z80i_bit_hl(int b, u8 value) {
+Z80_ALU void z80i_bit_hl(int b, u8 value) {
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = value & (1 << b);
 	Z.f.h_val = HF;
@@ -576,7 +595,7 @@ Z80_INLINE void z80i_bit_hl(int b, u8 value) {
 	Z.f.yx_val = WZ_H;
 }
 
-Z80_INLINE void z80i_bit_xy(int b, u8 value) {
+Z80_ALU void z80i_bit_xy(int b, u8 value) {
 	QT = 0;
 	Z.f.s_val = Z.f.z_val = Z.f.pv_val = value & (1 << b);
 	Z.f.h_val = HF;
@@ -587,7 +606,7 @@ Z80_INLINE void z80i_bit_xy(int b, u8 value) {
 Z80_INLINE u8 z80i_res(int b, u8 value) { return value & ~(1 << b); }
 Z80_INLINE u8 z80i_set(int b, u8 value) { return value | (1 << b); }
 
-Z80_INLINE void z80i_block_io_interrupted_flags(void) {
+Z80_ALU void z80i_block_io_interrupted_flags(void) {
 	Z.f.yx_val = PC >> 8;
 	const u8 pv_old = F_PV();
 	if (Z.f.c) {
@@ -757,6 +776,8 @@ void z80_set_regs(int cpu, const z80_regs_t *r) {
 #undef Z
 #undef Z80_HOT
 #undef Z80_INLINE
+#undef Z80_ALU
+#undef Z80_MEM
 #undef ZCPU
 #undef ZW
 #undef HAS_LDAIR_QUIRK
