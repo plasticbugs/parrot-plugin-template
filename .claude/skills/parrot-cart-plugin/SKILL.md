@@ -97,7 +97,13 @@ tools/new-plugin.py --name "Star Sweeper" --by "Ann Lee" --id annlee.starsweeper
   add `--save-beside` (with `--opens` and `saves`): `Level 1.swp` saves
   to `Level 1.sav` in the same folder, as emulators do.
 - `--license` takes an SPDX ID (default MIT). An emulator core usually
-  decides this, so check the core's license first.
+  decides this, so check the core's license first, and the license of
+  every part it bundles. A part that allows no commercial use (Marat
+  Fayzullin's Z80, old MAME code) can't go out with GPL code: replace it
+  with `lib/z80` or a core written from the chip's documentation and
+  checked against `lib/z80`, delete it, and record the swap in
+  `VENDORED.md` and `THIRD-PARTY.md` (`references/porting.md`,
+  "Licenses").
 - Its tests in `test/run.sh` and `sim/test.sh` only check what holds for
   any plugin (it runs, RESET gets back to the menu, the card stays
   clean). They're named after the `.CVP` (`SWEEPER.CVP`: `sweeper`,

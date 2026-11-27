@@ -631,3 +631,35 @@ The core's license usually decides the plugin's. GPL and LGPL code needs
 the README to link to the source of the exact release (the tag), and
 every core, font and table that isn't yours goes in the README's credits
 and `THIRD-PARTY.md`, with its license.
+
+Check every folder of an emulator, not just its top `LICENSE`. Many
+bundle parts under other terms, and some of those can't go out with
+the rest. Marat Fayzullin's CPU cores (his Z80 is in NeoPop, fMSX and
+others) allow no commercial use, and old MAME code (before 2016) had a
+non-commercial license too. A license with that kind of extra limit is
+incompatible with the GPL, so a GPL emulator that bundles one can't be
+released with it as it is, even as a free plugin.
+
+Replace such a part before the first release:
+
+- A Z80: use `lib/z80` (MAME 0.288's, BSD 3-Clause) behind the
+  emulator's own Z80 calls, as a small glue file. Build it with
+  `-DZ80_COMPACT` if RAM is short (`lib/z80/README.md`).
+- If that doesn't fit, or for another CPU, write one from the chip's
+  documentation, not from the part it replaces, and check it against
+  the kit's core for that CPU in `lib/` (or MAME's) instruction by
+  instruction: run both on the same code
+  (random instructions, then the game's own driver) and compare the
+  registers, flags, cycles and writes after each one. For a Z80,
+  `lib/z80`'s `Z80_TRACE` is the place: it's called before each of its
+  instructions, so run one of yours there and compare. Keep the check in
+  the plugin's `test/` and run it before each release.
+- Delete the old part from `vendor/`, so it isn't in the repository at
+  all, and say so in the emulator's `VENDORED.md`: what was taken out,
+  why (its license), and what replaces it.
+
+Then record it in `THIRD-PARTY.md`. The replacement is either your code
+under the plugin's license (say so in the paragraph above the table:
+"its Z80, `src/myz80.c`, is the plugin's own, GPL-2.0-or-later") or a
+row for `lib/z80` with MAME's BSD 3-Clause. Don't list the part you
+removed, since it isn't in the release.
