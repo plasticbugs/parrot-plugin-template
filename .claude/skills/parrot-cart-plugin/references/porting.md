@@ -660,6 +660,6 @@ Replace such a part before the first release:
 
 Then record it in `THIRD-PARTY.md`. The replacement is either your code
 under the plugin's license (say so in the paragraph above the table:
-"its Z80, `src/myz80.c`, is the plugin's own, GPL-2.0-or-later") or a
+"its Z80, `src/myz80.c`, is the plugin's code, GPL-2.0-or-later") or a
 row for `lib/z80` with MAME's BSD 3-Clause. Don't list the part you
 removed, since it isn't in the release.

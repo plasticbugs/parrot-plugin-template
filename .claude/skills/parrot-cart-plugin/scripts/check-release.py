@@ -11,7 +11,7 @@ bus loop, and no change to the 150 MHz clock that loop is timed for. With
 --cvp it also checks a built .CVP against CMakeLists.txt.
 
 An ID that starts with parrotcart. is a warning: that prefix is for the
-Parrot Cart's own plugins. Those pass with --owner, or with
+plugins the Parrot Cart makes. Those pass with --owner, or with
 PARROTCART_OWNER=1 in the environment.
 
 Each line is "ok", "warn" (worth fixing) or "FAIL" (fix it before the
@@ -90,7 +90,7 @@ def check_cmake(root, owner=False):
     elif pid.startswith("yourname.") or pid == "yourname.hello":
         fail(f"ID {pid}: still the template's. Use your own developer name, for good (docs/plugin-rules.md)")
     elif pid.startswith("parrotcart.") and owner:
-        ok(f"ID {pid} (one of the cart's own: --owner)")
+        ok(f"ID {pid} (a Parrot Cart plugin: --owner)")
     elif pid.startswith("parrotcart."):
         warn(f"ID {pid}: parrotcart. is for the cart's own plugins. Use your own developer name")
     else:
@@ -379,7 +379,7 @@ def main():
     ap.add_argument("dir", nargs="?", default=".")
     ap.add_argument("--cvp", help="a built .CVP to check against CMakeLists.txt")
     ap.add_argument("--owner", action="store_true",
-                    help="one of the Parrot Cart's own plugins: a parrotcart. ID passes (or PARROTCART_OWNER=1)")
+                    help="a plugin the Parrot Cart makes: a parrotcart. ID passes (or PARROTCART_OWNER=1)")
     a = ap.parse_args()
     owner = a.owner or os.environ.get("PARROTCART_OWNER", "") not in ("", "0")
     root = os.path.abspath(a.dir)

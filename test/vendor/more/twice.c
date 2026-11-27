@@ -1,4 +1,4 @@
-// test/vendor/more/twice.c: more of the plugin's own code, outside its
+// test/vendor/more/twice.c: more of the plugin's code, outside its
 // folder (--src): built with warnings and UBSan, as its main.c is.
 #include "twice.h"
 

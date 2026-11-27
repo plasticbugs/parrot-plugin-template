@@ -328,9 +328,10 @@ folder (add `--cvp build/NAME.CVP` after a build). It checks the ID, the
 version against the last tag, the README's credits and source link, the
 screenshots, the license files and the timing (the frame lists' bus loop
 and the clock), and looks for ROMs or game data that must not be in the
-repository. A `parrotcart.` ID is a warning: that prefix is the Parrot
-Cart's own. For one of those, the owner runs it with `--owner` (or sets
-`PARROTCART_OWNER=1`). Never add it for anyone else's plugin. Fix what
+repository. A `parrotcart.` ID is a warning: that prefix is for the
+plugins the Parrot Cart makes. For one of those, the owner runs it with
+`--owner` (or sets `PARROTCART_OWNER=1`). Never add it for anyone else's
+plugin. Fix what
 it reports, then:
 
 1. **Screenshots**: up to three, `screenshots/screenshot-1.png` to

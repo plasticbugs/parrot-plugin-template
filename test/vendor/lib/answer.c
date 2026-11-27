@@ -2,7 +2,7 @@
 // the habits such code has: a variable it never uses (a warning) and a
 // shift of a negative number (undefined in C, so UBSan reports it). Built
 // with --vendor, the models and the simulator report neither, as the
-// code's own build wouldn't.
+// code's build wouldn't.
 #include "answer.h"
 
 static volatile int minus = -1;         // (volatile: the shift happens when it runs)

@@ -96,9 +96,9 @@ sim/run.sh src --src '../lib/*.c' --vendor '../vendor/core/*.c' \
 `--src` takes a file or pattern, relative to `PLUGIN_DIR`. `--vendor`
 does the same for code that came from another project, such as an
 emulator's core: it's built without UBSan and without warnings, the way
-its own build would, so its habits (a shift of a negative number, an
-unused variable) don't bury your plugin's own reports. ASan still checks
-it. `--include` adds a folder for `#include`, relative to `PLUGIN_DIR`
+its project builds it, so its habits (a shift of a negative number, an
+unused variable) don't bury the reports about your code. ASan still
+checks it. `--include` adds a folder for `#include`, relative to `PLUGIN_DIR`
 like `--src` (or to the current folder, if it isn't there), and
 `--define` adds a define. `--no-sanitize` builds without the memory
 checks (section 6), which makes it faster. `test/host/build.sh` and

@@ -64,7 +64,7 @@ border, say) can send just those cells: `nescv_band_start()`, then
 `c1 - 1` of each band that changed, then `nescv_band_done()`. The cells
 left out keep what the last picture had.
 
-`nescv_vram()` and `nescv_reg()` put the plugin's own writes (sprites, a
+`nescv_vram()` and `nescv_reg()` put the plugin's writes (sprites, a
 register) at the start of the next list. `nescv_psg()` makes PSG bytes
 from a NES APU's state, for a NES-like sound chip. Everything else is in
 `nescv.h`.
