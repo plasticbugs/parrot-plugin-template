@@ -197,9 +197,20 @@ tools/armcount/build.sh /tmp/bench.elf test/bench.c src/game.c -- -O2
 run it once as it is. `build.sh` builds with the pico-sdk's flags,
 everything in SRAM; pass your plugin's own flags after `--`.
 `--load bench_data=FILE` fills a global from a file before the start,
-which is how a bench gets the user's ROMs without the card. The report
-gives the average, the worst and the lists that would be late, and
-`--profile` the time by function. Leave a few milliseconds to spare: it
+which is how a bench gets the user's ROMs without the card, and
+`--load 0x11000000=FILE` puts a file in the PSRAM, for a plugin that
+reads its ROM from there (`CVPSRAM_CACHED` is `0x11000000`; a bench
+can't include `cvpsram.h`, so write the address). The report gives the
+average, the worst and the lists that would be late, and `--profile`
+the time by function.
+
+The PSRAM goes through a model of the chip's cache: 16 KB, two ways,
+8-byte lines. Each line it has to read, or write back, costs about 70
+cycles (`--psram-miss` changes it), and so does every access through
+`CVPSRAM_UNCACHED`. The report's last line counts them. A plugin that
+reads a big ROM from the PSRAM in a pattern the cache can't hold shows
+it here: 70 cycles for each 8 bytes is about 9 cycles a byte, against 1
+or 2 from SRAM. The PSRAM Example's times on a cart are the real speed. Leave a few milliseconds to spare: it
 can't count what the bus costs when the other core or the DMA uses the
 same RAM, so the plugin's own count of late lists on the cart is the
 last word.

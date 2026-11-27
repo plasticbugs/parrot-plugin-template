@@ -8,7 +8,10 @@
 // counts the cycles from one bench_mark() call to the next, so call
 // bench_mark() once after each list's work and nothing else between. Data
 // from outside (a ROM set the user owns, a script of inputs) goes in a
-// global that armcount.py fills before the start: --load SYMBOL=FILE.
+// global that armcount.py fills before the start: --load SYMBOL=FILE. A
+// plugin that keeps its ROM in the PSRAM reads it at 0x11000000 (the
+// SDK's CVPSRAM_CACHED), and --load 0x11000000=FILE puts it there; the
+// PSRAM's cache misses are counted too.
 //
 // This one is a working example: each "list" draws a moving picture of
 // 224 x 256 pens and scales it by 3/4 with the SDK's cvscale34(), as an

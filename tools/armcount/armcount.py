@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """armcount.py BENCH.elf [--lists N] [--from N] [--load SYMBOL=FILE ...]
+                [--load ADDRESS=FILE ...] [--psram-miss CYCLES]
                 [--each] [--profile] [--hot FUNCTION]
 
 How long the cart's Cortex-M33 takes over each list of a plugin's work.
@@ -14,6 +15,16 @@ is in SRAM at 150 MHz. What it leaves out is the bus when core 1 or the
 DMA uses the same RAM bank, so the plugin's own count of late lists on
 the cart is the last word.
 
+The PSRAM is there too, 8 MB at 0x11000000 (CVPSRAM_CACHED) and the
+same memory at 0x15000000 (CVPSRAM_UNCACHED), behind a model of the
+RP2350's XIP cache: 16 KB, two ways, 8-byte lines, a line read on a miss
+and a changed line written back when it leaves. Each line read or
+written back costs --psram-miss cycles (default 70: a QPI transfer of a
+line at 75 MHz is about 30 of the PSRAM's clocks, 60 of the M33's, and
+the QMI adds a few); an access through the uncached alias costs the
+same, every time. The cache starts empty at the first counted list. The
+PSRAM Example's times on the cart (docs/testing.md) are the real speed.
+
 A list is 16.77 ms of the console's time, 2.52 million cycles. The
 plugin makes each list as soon as the last is published, and the SDK
 holds one more, so a slow list is fine if those before it were quick.
@@ -23,6 +34,9 @@ so far took more than their time plus one list's. "late" counts those.
   --lists N        run N lists (default 600, ten seconds)
   --from N         count from list N on (default 1); the ones before run fast
   --load SYM=FILE  write FILE into the global SYM before the start (a ROM set)
+  --load ADDR=FILE write FILE at an address before the start: 0x11000000
+                   for a ROM the plugin reads from the PSRAM
+  --psram-miss N   the cycles a PSRAM line costs (default 70)
   --each           print every list's count
   --profile        the cycles by function
   --hot FUNCTION   that function's costliest blocks, disassembled
@@ -37,13 +51,15 @@ hooks are added before the counted lists and the cache is flushed
 out far too low.
 """
 import bisect
+import ctypes
 import re
 import sys
 
 try:
     from capstone import CS_ARCH_ARM, CS_MODE_MCLASS, CS_MODE_THUMB, Cs
     from elftools.elf.elffile import ELFFile
-    from unicorn import UC_ARCH_ARM, UC_HOOK_BLOCK, UC_MODE_THUMB, Uc
+    from unicorn import UC_ARCH_ARM, UC_HOOK_BLOCK, UC_HOOK_MEM_READ, UC_HOOK_MEM_WRITE, UC_MODE_THUMB, UC_PROT_ALL, Uc
+    from unicorn.unicorn_const import UC_MEM_WRITE
     from unicorn.arm_const import UC_ARM_REG_C1_C0_2, UC_ARM_REG_FPEXC, UC_ARM_REG_LR, UC_CPU_ARM_MAX
 except ImportError as e:
     sys.exit(f"armcount.py: {e}. It needs unicorn, capstone and pyelftools: "
@@ -51,10 +67,13 @@ except ImportError as e:
 
 LIST_CYCLES = 2_516_000         # 16.77 ms at 150 MHz
 MHZ = 150
+SRAM, SRAM_SIZE = 0x20000000, 0x80000
+PSRAM, PSRAM_UNCACHED, PSRAM_SIZE = 0x11000000, 0x15000000, 0x800000   # cvpsram.h's CVPSRAM_CACHED, _UNCACHED
+CACHE_SETS = 1024               # the XIP cache: 1024 sets of two 8-byte lines, 16 KB
 
 
 def options(argv):
-    o = {"lists": 600, "from": 1, "load": [], "each": False, "profile": False, "hot": None}
+    o = {"lists": 600, "from": 1, "load": [], "each": False, "profile": False, "hot": None, "psram_miss": 70}
     args = argv[1:]
     if not args or args[0] in ("-h", "--help"):
         sys.exit(__doc__)
@@ -63,6 +82,8 @@ def options(argv):
         a = args.pop(0)
         if a in ("--lists", "--from"):
             o[a[2:]] = int(args.pop(0))
+        elif a == "--psram-miss":
+            o["psram_miss"] = int(args.pop(0))
         elif a == "--load":
             sym, _, path = args.pop(0).partition("=")
             o["load"].append((sym, path))
@@ -73,6 +94,52 @@ def options(argv):
         else:
             sys.exit(f"armcount.py: {a}? (--help)")
     return o
+
+
+# ---- the PSRAM behind the XIP cache ------------------------------------------------------
+class Psram:
+    """the XIP cache's lines for the PSRAM: tags[set] = [way 0, way 1] (line
+    numbers, -1 empty), the way to replace next, and the changed lines"""
+    def __init__(self, miss, state):
+        self.miss, self.state = miss, state
+        self.tags = [[-1, -1] for _ in range(CACHE_SETS)]
+        self.next = [0] * CACHE_SETS
+        self.dirty = set()
+        self.reads = self.misses = self.writebacks = self.uncached = 0
+
+    def line(self, line, write):
+        st = line % CACHE_SETS
+        t = self.tags[st]
+        self.reads += 1
+        if t[0] == line or t[1] == line:
+            w = 0 if t[0] == line else 1
+        else:
+            w = self.next[st]
+            old = t[w]
+            if old in self.dirty:                       # the changed line goes back first
+                self.dirty.discard(old)
+                self.writebacks += 1
+                self.state["cycles"] += self.miss
+            t[w] = line
+            self.misses += 1
+            self.state["cycles"] += self.miss
+        self.next[st] = 1 - w                           # the other way next: least recently used
+        if write:
+            self.dirty.add(line)
+
+    def hook(self, uc, access, addr, size, value, _):
+        if addr >= PSRAM_UNCACHED:
+            self.uncached += 1
+            self.state["cycles"] += self.miss
+            return
+        for a in range(addr & ~7, addr + size, 8):
+            self.line((a - PSRAM) >> 3, access == UC_MEM_WRITE)
+
+    def report(self):
+        if self.reads or self.uncached:
+            return (f"PSRAM: {self.reads} cached accesses, {self.misses} lines read and {self.writebacks} written "
+                    f"back ({self.miss} cycles each), {self.uncached} uncached")
+        return None
 
 
 # ---- the M33's times --------------------------------------------------------------------
@@ -122,7 +189,11 @@ def main():
     o = options(sys.argv)
     uc = Uc(UC_ARCH_ARM, UC_MODE_THUMB)
     uc.ctl_set_cpu_model(UC_CPU_ARM_MAX)        # ARMv8's FP (vsel, vminnm): the M33 has it, Unicorn's default doesn't
-    uc.mem_map(0x20000000, 0x80000)
+    uc.mem_map(SRAM, SRAM_SIZE)
+    # the PSRAM, one buffer at both of its addresses (the cached and the uncached alias)
+    psram_buf = ctypes.create_string_buffer(PSRAM_SIZE)
+    uc.mem_map_ptr(PSRAM, PSRAM_SIZE, UC_PROT_ALL, ctypes.addressof(psram_buf))
+    uc.mem_map_ptr(PSRAM_UNCACHED, PSRAM_SIZE, UC_PROT_ALL, ctypes.addressof(psram_buf))
     sym, funcs = {}, []
     with open(o["elf"], "rb") as f:
         elf = ELFFile(f)
@@ -140,9 +211,18 @@ def main():
             sys.exit(f"armcount.py: {o['elf']} has no {need}: build it with tools/armcount/build.sh from a bench like bench.c")
     uc.mem_write(sym["__bss_start"], bytes(sym["__bss_end"] - sym["__bss_start"]))
     for name, path in o["load"]:
+        data = open(path, "rb").read()
+        if name[:1].isdigit():                          # an address: 0x11000000
+            at = int(name, 0)
+            if not any(base <= at and at + len(data) <= base + size for base, size in
+                       ((SRAM, SRAM_SIZE), (PSRAM, PSRAM_SIZE), (PSRAM_UNCACHED, PSRAM_SIZE))):
+                sys.exit(f"armcount.py: --load {name}: {len(data)} bytes there aren't all in the SRAM "
+                         f"(0x{SRAM:08x}) or the PSRAM (0x{PSRAM:08x}, 8 MB)")
+            uc.mem_write(at, data)
+            continue
         if name not in sym:
             sys.exit(f"armcount.py: no global {name} in {o['elf']}")
-        uc.mem_write(sym[name], open(path, "rb").read())
+        uc.mem_write(sym[name], data)
     uc.reg_write(UC_ARM_REG_C1_C0_2, uc.reg_read(UC_ARM_REG_C1_C0_2) | (0xF << 20))   # the FPU on
     uc.reg_write(UC_ARM_REG_FPEXC, 0x40000000)
 
@@ -181,6 +261,7 @@ def main():
             if fn == o["hot"]:
                 per_block[(addr, size)] = per_block.get((addr, size), 0) + t
 
+    psram = Psram(o["psram_miss"], state)
     mark = sym["bench_mark"] & ~1
     pc = sym["_start"] | 1
     hook = None
@@ -189,7 +270,9 @@ def main():
         counted = n >= o["from"]
         if counted and hook is None:
             hook = uc.hook_add(UC_HOOK_BLOCK, on_block)
-            uc.ctl_flush_tb()                   # (code translated before the hook wouldn't call it)
+            for base in (PSRAM, PSRAM_UNCACHED):
+                uc.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, psram.hook, begin=base, end=base + PSRAM_SIZE - 1)
+            uc.ctl_flush_tb()                   # (code translated before the hooks wouldn't call them)
         state.update(cycles=0, fall=None, cond=False)
         uc.emu_start(pc, mark)
         pc = uc.reg_read(UC_ARM_REG_LR) | 1     # where bench_mark() returns to
@@ -214,6 +297,8 @@ def main():
     print(f"{len(res)} lists: average {ms(sum(cyc) / len(cyc)):.2f} ms ({100 * sum(cyc) / len(cyc) / LIST_CYCLES:.0f}%), "
           f"99th percentile {ms(cyc[min(len(cyc) - 1, len(cyc) * 99 // 100)]):.2f} ms, worst {ms(worst):.2f} ms "
           f"(list {worst_n}), {late} late; a list has 16.77 ms")
+    if psram.report():
+        print(psram.report())
     if o["profile"]:
         tot = sum(per_func.values()) or 1
         for fn, c in sorted(per_func.items(), key=lambda x: -x[1])[:25]:
