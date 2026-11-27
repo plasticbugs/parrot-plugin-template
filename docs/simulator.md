@@ -85,24 +85,37 @@ most:
 | `--strict` | stops at the first rule the plugin breaks (section 6) |
 | `--shots DIR` | sets where F12 saves screenshots |
 
-If your plugin needs more files to build, give them before the
+If your plugin needs more files to build, give them with the
 simulator's options:
 
 ```sh
-sim/run.sh ../my-plugin/src --src '../vendor/lib/*.c' \
-    --include ../my-plugin/vendor/lib --define USE_THIS=1
+sim/run.sh src --src '../lib/*.c' --vendor '../vendor/core/*.c' \
+    --include ../vendor/core --define USE_THIS=1
 ```
 
-`--src` takes a file or pattern, relative to `PLUGIN_DIR`. `--include`
-adds a folder for `#include`, and `--define` adds a define.
-`--no-sanitize` builds without the memory checks (section 6), which
-makes it faster.
+`--src` takes a file or pattern, relative to `PLUGIN_DIR`. `--vendor`
+does the same for code that came from another project, such as an
+emulator's core: it's built without UBSan and without warnings, the way
+its own build would, so its habits (a shift of a negative number, an
+unused variable) don't bury your plugin's own reports. ASan still checks
+it. `--include` adds a folder for `#include`, relative to `PLUGIN_DIR`
+like `--src` (or to the current folder, if it isn't there), and
+`--define` adds a define. `--no-sanitize` builds without the memory
+checks (section 6), which makes it faster. `test/host/build.sh` and
+`test/run.sh`'s `run` take the same `--src`, `--vendor`, `--include`
+and `--define`, so the models build the plugin the same way
+(`docs/testing.md`).
+
+`--out`, `--shot`, `--shots` and `--wav` are made into full paths from
+the folder you ran `sim/run.sh` in, so a script of yours can call it from
+anywhere and the files land where it asked.
 
 With `sim\run.bat`, or with your own build, use CMake directly:
 
 ```sh
 cmake -S sim -B build-sim/myplugin -DPLUGIN_DIR=/path/to/my-plugin/src \
-    "-DPLUGIN_SOURCES=../vendor/lib/*.c" -DPLUGIN_INCLUDES=/path/to/vendor/lib
+    "-DPLUGIN_SOURCES=../lib/*.c" "-DPLUGIN_VENDOR=../vendor/core/*.c" \
+    -DPLUGIN_INCLUDES=/path/to/my-plugin/vendor/core
 cmake --build build-sim/myplugin --config Release
 build-sim/myplugin/parrotsim --card ~/sdcard
 ```

@@ -16,7 +16,7 @@
 #
 # The names: hello screen sound usb-gamepad usb-keyboard-mouse usb-midi-out
 # sd-card open-file frames samples two-controllers psram lua vdp usb font
-# timers leave. Pictures and logs: build-sim/test/.
+# timers leave vendor. Pictures and logs: build-sim/test/.
 set -e
 # (on Windows, in Git Bash or MSYS2: C:/... paths throughout, and the shell
 # told not to turn the card's "/NOTES/..." into a path on this computer)
@@ -297,6 +297,21 @@ fi
 if wanted leave; then
     run leave "$kit/test/leave" --ms 1500 --script "500:key=1 700:key="
     expect "cvk_on_exit's function: 50[0-9] ms of its 3000" 'bottom line "left after 500 ms"'
+fi
+# sources outside the plugin's folder, as test/run.sh's vendor: the build's
+# options among the simulator's, and a relative --shot from another folder
+if wanted vendor; then
+    run vendor "$kit/test/vendor/src" --ms 500 --src ../more/twice.c --vendor '../lib/*.c' \
+        --include ../lib/include --include ../more --define VENDOR_ANSWER=42
+    expect 'note "vendor 42 14"'
+    grep -q 'runtime error' "$o/run.txt" && fail "UBSan reported lib/, which --vendor builds without it"
+    if [ -z "$skip" ]; then
+        (cd "$o" && "$kit/sim/run.sh" "$kit/test/vendor/src" --headless --ms 100 --shot here.png --out again \
+            --src ../more/twice.c --vendor '../lib/*.c' --include ../lib/include --include ../more \
+            --define VENDOR_ANSWER=42 >/dev/null 2>&1) || fail "the run from $o stopped with an error"
+        [ -f "$o/here.png" ] && [ -f "$o/again/log.txt" ] && echo "  --shot and --out: where the caller asked" ||
+            fail "a relative --shot or --out didn't land in $o"
+    fi
 fi
 
 [ $compared = 0 ] && echo "(no test/host pictures to compare with: test/run.sh hasn't run here)"

@@ -12,7 +12,11 @@
 # plugin needs them:
 #
 #   PLUGIN_SOURCES    more source files or patterns, relative to PLUGIN_DIR
-#                     (a ;-list): a vendored library, say
+#                     (a ;-list): a library of your own, say
+#   PLUGIN_VENDOR     the same, for someone else's code (an emulator's
+#                     core): built without UBSan and without warnings, as
+#                     its own build would (ASan stays on). A file already in
+#                     PLUGIN_DIR or PLUGIN_SOURCES can be named here too
 #   PLUGIN_INCLUDES   more include folders
 #   PLUGIN_DEFINES    more defines
 #   SIM_SANITIZE      ASan and UBSan, for the plugin's own memory bugs (ON
@@ -29,6 +33,7 @@ project(parrotsim C CXX)
 
 set(PLUGIN_DIR "" CACHE PATH "the plugin's own sources")
 set(PLUGIN_SOURCES "" CACHE STRING "more sources or patterns, relative to PLUGIN_DIR")
+set(PLUGIN_VENDOR "" CACHE STRING "someone else's sources or patterns, relative to PLUGIN_DIR: no UBSan, no warnings")
 set(PLUGIN_INCLUDES "" CACHE STRING "more include folders")
 set(PLUGIN_DEFINES "" CACHE STRING "more defines")
 if(MSVC OR MINGW)
@@ -71,6 +76,17 @@ foreach(pattern IN LISTS PLUGIN_SOURCES)
   endif()
   list(APPEND found_sources ${more})
 endforeach()
+set(vendor_sources "")
+foreach(pattern IN LISTS PLUGIN_VENDOR)
+  get_filename_component(pattern "${pattern}" ABSOLUTE BASE_DIR "${PLUGIN_DIR}")
+  file(GLOB more "${pattern}")
+  if(NOT more)
+    message(FATAL_ERROR "PLUGIN_VENDOR: nothing is ${pattern}")
+  endif()
+  list(APPEND vendor_sources ${more})
+endforeach()
+list(APPEND found_sources ${vendor_sources})
+list(REMOVE_DUPLICATES found_sources)
 set(plugin_sources "")
 set(main_in_cxx OFF)
 foreach(f IN LISTS found_sources)
@@ -139,6 +155,16 @@ endif()
 if(SIM_SANITIZE)
   add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
+endif()
+# someone else's code (PLUGIN_VENDOR): its warnings and its undefined
+# behaviour (a shift of a negative number, a read off a word's boundary)
+# are its own, so not reported; ASan still checks its memory
+if(vendor_sources)
+  if(MSVC)
+    set_source_files_properties(${vendor_sources} PROPERTIES COMPILE_OPTIONS "/w")
+  else()
+    set_source_files_properties(${vendor_sources} PROPERTIES COMPILE_OPTIONS "-w;-fno-sanitize=undefined")
+  endif()
 endif()
 
 # the plugin's files, its main() renamed (in C++, then handed on as C by cxxmain.cpp)

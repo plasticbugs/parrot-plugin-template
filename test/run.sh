@@ -42,9 +42,13 @@ if [ $have_mame = 1 ] && ! SDL_VIDEODRIVER=dummy mame -verifyroms coleco ${MAME_
     echo " MAME's own rompath. docs/testing.md has more.)"
 fi
 
-# run NAME DIR -- with PC_* in the environment; then the log must match each
-# remaining argument (a grep -E pattern). (sh keeps a function's PC_*=...
-# after it returns: they are cleared, so one run's script isn't the next's.)
+# run NAME DIR [build options] [patterns] -- with PC_* in the environment;
+# then the log must match each pattern (grep -E). The build options come
+# first, as test/host/build.sh and sim/run.sh take them, for a plugin with
+# sources outside DIR: --src PATTERN, --vendor PATTERN (someone else's
+# code: no UBSan, no warnings), --include DIR, --define NAME[=V]. (sh keeps
+# a function's PC_*=... after it returns: they are cleared, so one run's
+# script isn't the next's.)
 # A frame plugin whose lists run back to back says so in its CMakeLists.txt
 # (parrotcart_frames(TARGET BACK_TO_BACK)), or PC_BACK_TO_BACK=1 here: the
 # model and the MAME step then check that the console goes straight from
@@ -58,8 +62,21 @@ run_one() {
     o=$out/$name
     rm -rf "$o"; mkdir -p "$o"
     printf '%s\n' "$name"
+    # the build's options, a line each (so a value keeps its spaces), and no globbing until build.sh
+    bopts=
+    while [ $# -gt 1 ]; do
+        case "$1" in --src|--vendor|--include|--define) bopts="$bopts$1
+$2
+"; shift 2 ;; *) break ;; esac
+    done
     [ -d "$dir" ] || { echo "  (not here: $dir)"; return 0; }
-    if ! "$kit/test/host/build.sh" "$dir" "$o/run" 2>"$o/build.log"; then
+    set -f; IFS='
+'
+    # shellcheck disable=SC2086
+    if ! "$kit/test/host/build.sh" "$dir" "$o/run" $bopts 2>"$o/build.log"; then built=0; else built=1; fi
+    set +f; IFS=' 	
+'
+    if [ $built = 0 ]; then
         echo "  the Mac build FAILED:"; sed 's/^/    /' "$o/build.log" | head -20; status=1
         unset PC_SCRIPT PC_OPEN PC_CARD PC_NO_PSRAM PC_END PC_BACK_TO_BACK; return 0
     fi
@@ -351,6 +368,16 @@ if wanted leave; then
             else echo "  FAIL in MAME ($how): $(cat "$m/$how.txt")"; status=1; fi
         done
     fi
+fi
+# a plugin built from sources outside its folder (test/vendor/src/main.c
+# says how): --src for its own code, --vendor for someone else's, which is
+# built without UBSan and warnings, --include and --define
+if wanted vendor; then
+    PC_END=500 run vendor "$kit/test/vendor/src" --src ../more/twice.c --vendor '../lib/*.c' \
+        --include ../lib/include --include ../more --define VENDOR_ANSWER=42 'note "vendor 42 14"'
+    if PC_OUT=$out/vendor PC_END=500 "$out/vendor/run" 2>&1 >/dev/null | grep -q 'runtime error'; then
+        echo "  FAIL: UBSan reported lib/, which --vendor builds without it"; status=1
+    else echo "  lib/ (--vendor): no warnings, and nothing from UBSan"; fi
 fi
 [ $status = 0 ] && echo "all checks passed (pictures: $out/*/screen.png)"
 exit $status

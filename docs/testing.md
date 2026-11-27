@@ -63,6 +63,17 @@ PC_OUT=/tmp PC_END=3000 PC_SCRIPT="500:joy=up 900:key=5" /tmp/myplugin
 open /tmp/screen.png; cat /tmp/log.txt
 ```
 
+A plugin with sources outside `src/`, such as a vendored emulator, gives
+`test/host/build.sh` the simulator's options: `--src PATTERN` for more of
+its own files, `--vendor PATTERN` for someone else's (built without UBSan
+and warnings), `--include DIR` and `--define NAME=VALUE`, with paths
+relative to the plugin's folder. In `test/run.sh` they go after the
+folder, before the patterns:
+
+```sh
+run mygame "$kit/src" --vendor '../vendor/core/*.c' --include ../vendor/core 'back to the menu'
+```
+
 Each event happens at its millisecond, on the plugin's next call to the
 SDK after it. The console reads its controllers once a TV frame, so a
 `joy=` or `key=` reaches the plugin at the next frame, as on the cart.

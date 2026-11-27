@@ -592,8 +592,20 @@ code included, runs from the 507 KB of SRAM, and `.bss` must end below
 
 ## Testing on the Mac first
 
-Compile the core and your encoder for the Mac against the kit's models
-(`test/host/build.sh`, `sim/run.sh --src ... --include ...`). Then:
+Compile the core and your encoder for the Mac against the kit's models.
+`sim/run.sh`, `test/host/build.sh` and `test/run.sh`'s `run` take the
+same options for code outside `src/`: `--src` for your own files,
+`--vendor` for the core's (built without UBSan and warnings, so its
+habits don't bury your reports; ASan stays on), `--include` and
+`--define`, all relative to the plugin's folder:
+
+```sh
+sim/run.sh src --vendor '../vendor/core/*.c' --include ../vendor/core \
+    --define CORE_OPTION=1 --headless --ms 3000 --shot /tmp/shot.png
+```
+
+Put the same options on the plugin's `run` lines in `test/run.sh` and
+`sim/test.sh`, so its tests build it the way the cart does. Then:
 
 - play it in the simulator with a game the user owns, from a folder given
   as `--card`;
