@@ -31,7 +31,7 @@ static void on_exit(void) {
         uint8_t bits;
         if (cvk_report(time_us_32(), &kind, &bits)) calls_after++;
     }
-    char s[33];
+    char s[64];                         // (cvk_note keeps the first 32)
     snprintf(s, sizeof s, "left after %lu ms%s", (unsigned long)exit_ms, calls_after ? ", reports!" : "");
     cvk_note(s);
 }

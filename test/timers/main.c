@@ -24,7 +24,7 @@
 static cvs_t screen;
 static uint8_t list[CVS_LIST_MAX];
 static volatile uint32_t fast, slow, fired, cancelled;
-static char line[33];
+static char line[64];               // (cvk_note keeps the first 32)
 
 static bool on_fast(repeating_timer_t *t) {
     (void)t;
