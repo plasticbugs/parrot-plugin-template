@@ -10,7 +10,7 @@ out=$(mktemp -d "${TMPDIR:-/tmp}/parrotcart-lib.XXXXXX")
 trap 'rm -rf "$out"' EXIT
 flags="-std=c11 -O1 -g -fsanitize=address,undefined -fno-sanitize-recover=undefined -Wall -Wextra -Wno-missing-field-initializers"
 sdk=$kit/sdk/firmware/revc/sdk
-for t in z80 z80-compact z80-compact2 sched mcs48 sp0250 m6809 m6800 scalen dial nescv nescv-fast; do
+for t in z80 z80-compact z80-compact2 z80lite sched mcs48 sp0250 m6809 m6800 scalen dial nescv nescv-fast; do
     extra= src=$t
     case $t in
         z80-compact) src=z80 extra=-DZ80_COMPACT ;;
