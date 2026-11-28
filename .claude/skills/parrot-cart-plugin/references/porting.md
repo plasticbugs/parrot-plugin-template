@@ -532,7 +532,7 @@ a copy of its `bench.c`, build it with `build.sh` and the plugin's flags,
 and `armcount.py` runs it in Unicorn and charges the M33's book times per
 instruction (`docs/testing.md`, "Fast enough on the cart"). Time Pilot averages 12.8 ms a list this way, worst
 15.5, and Donkey Kong about 14. Keep one CPU core for both
-of a board's Z80s (`lib/z80` does), so it fits in RAM once. If a busy picture can't keep
+of a board's Z80s (`lib/z80` and `lib/z80lite` do), so it fits in RAM once. If a busy picture can't keep
 up, send part of it now and the rest next list (Donkey Kong caps a
 picture at 96 changed tiles) rather than slow the game. Count late lists
 in the plugin's note (`cvf_note`), since only the cart has the last word.
@@ -594,6 +594,10 @@ code included, runs from the 507 KB of SRAM, and `.bss` must end below
 - `lib/z80` is about 100 KB at `-O3`. `-DZ80_COMPACT` takes 15 KB off
   for 2% of its speed, and `-DZ80_COMPACT=2` takes 34 KB off for a
   third (`lib/z80/README.md`).
+- `lib/z80lite` is 34 KB and a little faster than `lib/z80`. It runs
+  whole instructions, so it can't stop where MAME's timeslices do. That
+  is fine for a sound CPU or a console's Z80, not for a board that has
+  to match MAME cycle for cycle (`lib/z80lite/README.md`, "Which Z80").
 - If it doesn't fit below `0x2007EC00`, try `-Os` for cold code first.
   `XIP` (run from flash) is the last step, and the code that talks to the
   console still has to be in RAM (`cvxip.h`).
@@ -644,7 +648,9 @@ Replace such a part before the first release:
 
 - A Z80: use `lib/z80` (MAME 0.288's, BSD 3-Clause) behind the
   emulator's own Z80 calls, as a small glue file. Build it with
-  `-DZ80_COMPACT` if RAM is short (`lib/z80/README.md`).
+  `-DZ80_COMPACT` if RAM is short (`lib/z80/README.md`). If the
+  emulator only needs whole instructions, `lib/z80lite` (MIT) is a
+  third the size.
 - If that doesn't fit, or for another CPU, write one from the chip's
   documentation, not from the part it replaces, and check it against
   the kit's core for that CPU in `lib/` (or MAME's) instruction by
@@ -661,5 +667,6 @@ Replace such a part before the first release:
 Then record it in `THIRD-PARTY.md`. The replacement is either your code
 under the plugin's license (say so in the paragraph above the table:
 "its Z80, `src/myz80.c`, is the plugin's code, GPL-2.0-or-later") or a
-row for `lib/z80` with MAME's BSD 3-Clause. Don't list the part you
-removed, since it isn't in the release.
+row for `lib/z80` with MAME's BSD 3-Clause (or for `lib/z80lite`, MIT,
+the Parrot Cart contributors). Don't list the part you removed, since it
+isn't in the release.
